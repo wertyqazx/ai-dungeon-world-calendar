@@ -4,7 +4,7 @@ Travel is optional and disabled by default. No location table is required if you
 
 ## Enable travel
 
-At the beginning of `src/library.js`:
+At the beginning of the selected version's `library.js`:
 
 ```javascript
 ENABLE_TRAVEL: true

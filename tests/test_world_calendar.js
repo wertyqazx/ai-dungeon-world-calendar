@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-const library = fs.readFileSync("src/library.js", "utf8");
+const library = fs.readFileSync("calendar-only/library.js", "utf8");
 
 function buildRuntime() {
   const runtime = {
@@ -146,7 +146,7 @@ function card(runtime, title) {
   for (const filename of wrappers) {
     const runtime = buildRuntime();
     runtime.text = filename === "context.js" ? "Recent Story:\nTest" : ":date";
-    const result = vm.runInContext(fs.readFileSync(`src/${filename}`, "utf8"), runtime);
+    const result = vm.runInContext(fs.readFileSync(`calendar-only/${filename}`, "utf8"), runtime);
     assert.equal(typeof result.text, "string");
   }
 }

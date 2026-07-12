@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "node tests/test_world_calendar.js",
+    "test": "node tests/test_world_calendar.js && node tests/test_combined.js",
+    "test:calendar": "node tests/test_world_calendar.js",
+    "test:combined": "node tests/test_combined.js",
     "routes:example": "node tools/generate-route-template.js examples/locations.example.json 30"
   }
 }
