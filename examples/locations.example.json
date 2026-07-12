@@ -1,0 +1,30 @@
+[
+  {
+    "id": "hearthport",
+    "name": "Hearthport",
+    "state": "Example Kingdom",
+    "continent": "Western Lands",
+    "aliases": []
+  },
+  {
+    "id": "rivergate",
+    "name": "Rivergate",
+    "state": "Example Kingdom",
+    "continent": "Western Lands",
+    "aliases": []
+  },
+  {
+    "id": "sunharbor",
+    "name": "Sunharbor",
+    "state": "Coastal Republic",
+    "continent": "Southern Shores",
+    "aliases": []
+  },
+  {
+    "id": "eastwatch",
+    "name": "Eastwatch",
+    "state": "Frontier League",
+    "continent": "Eastern Expanse",
+    "aliases": []
+  }
+]

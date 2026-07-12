@@ -1,0 +1,9 @@
+{
+  "name": "ai-dungeon-world-calendar",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/test_world_calendar.js",
+    "routes:example": "node tools/generate-route-template.js examples/locations.example.json 30"
+  }
+}
