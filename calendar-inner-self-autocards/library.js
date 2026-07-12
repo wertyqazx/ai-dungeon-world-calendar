@@ -10162,8 +10162,10 @@ function WorldCalendar(hook, inputText) {
 
   const helpText = () => [
     ">>> World Calendar Commands",
+    "",
     "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
     "",
+    "Time skip:",
     "Use one universal command: :skip <duration>",
     "",
     "Examples:",
@@ -10172,11 +10174,22 @@ function WorldCalendar(hook, inputText) {
     ":skip 3 months",
     ":skip 1 year 2 months 3 days",
     ":skip night — advance to the next morning",
-    ...(TRAVEL_ENABLED ? [":travel Rivergate"] : []),
     "",
+    ...(TRAVEL_ENABLED ? [
+      "Travel:",
+      ":travel <destination> — travel to a configured destination and advance time by the journey duration",
+      "Example: :travel Rivergate",
+      "Available destinations are the major cities and locations configured by the scenario creator.",
+      "If your current location is unknown, custom, or too specific, first select a valid nearby destination:",
+      ":setlocation <destination>",
+      "Example: :setlocation Hearthport",
+      ""
+    ] : [
+      "Travel is disabled in this scenario.",
+      ""
+    ]),
     ":date — show the current date",
     ":where — show the current location",
-    ...(TRAVEL_ENABLED ? [":travel <city> — travel and advance the calendar"] : []),
     ":help — show this help",
     "Normal actions do not advance time."
   ].join("\n");

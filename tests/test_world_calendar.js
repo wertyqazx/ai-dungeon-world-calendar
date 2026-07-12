@@ -60,8 +60,10 @@ function card(runtime, title) {
 
   const help = submit(runtime, ":help");
   assert.match(help.output, /Don't forget to use :skip night/);
+  assert.match(help.output, /World Calendar Commands\n\nIMPORTANT/);
   assert.ok(help.output.indexOf("Don't forget to use :skip night") < help.output.indexOf("Use one universal command"));
   assert.doesNotMatch(help.output, /:travel/);
+  assert.match(help.output, /Travel is disabled in this scenario/);
 
   const beforeTravel = runtime.state.WorldCalendar.absoluteDay;
   const disabled = submit(runtime, ":travel Rivergate");
@@ -81,6 +83,12 @@ function card(runtime, title) {
   assert.match(journey.output, /Travel time: 14 days/);
   assert.match(journey.output, /Arrival date: 15 January 1000 AE/);
   assert.equal(runtime.state.WorldCalendar.location.name, "Rivergate");
+
+  const help = submit(runtime, ":help");
+  assert.match(help.output, /:travel <destination>/);
+  assert.match(help.output, /major cities and locations configured by the scenario creator/);
+  assert.match(help.output, /unknown, custom, or too specific/);
+  assert.match(help.output, /:setlocation <destination>/);
 
   const routeKeys = Object.keys(runtime.WorldCalendarSettings.TRAVEL_DAYS);
   assert.equal(runtime.WorldCalendarSettings.TRAVEL_NODES.length, 4);

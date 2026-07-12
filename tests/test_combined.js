@@ -94,6 +94,7 @@ function submit(runtime, input, modelOutput = "The story continues.") {
 
   const help = submit(runtime, ":help", "Calendar help requested.");
   assert.match(help.output.text, /Don't forget to use :skip night/);
+  assert.match(help.output.text, /World Calendar Commands\n\nIMPORTANT/);
   assert.ok(help.output.text.indexOf("Don't forget to use :skip night") < help.output.text.indexOf("Use one universal command"));
   assert.doesNotMatch(runtime.logs.join("\n"), /unexpected error|cannot read|typeerror/i);
 
