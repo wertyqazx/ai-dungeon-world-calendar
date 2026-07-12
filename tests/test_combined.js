@@ -89,7 +89,12 @@ function submit(runtime, input, modelOutput = "The story continues.") {
   assert.ok(runtime.storyCards.some((card) => /Configure\s+Inner Self/i.test(card.title)));
   assert.equal(runtime.storyCards.find((card) => card.title === "World Calendar").type, "calendar");
   assert.equal(runtime.storyCards.find((card) => card.title === "Custom Events").type, "events");
+  assert.match(runtime.storyCards.find((card) => card.title === "World Calendar").description, /Don't forget to use :skip night/);
   assert.match(normal.context.text, /World Time/);
+
+  const help = submit(runtime, ":help", "Calendar help requested.");
+  assert.match(help.output.text, /Don't forget to use :skip night/);
+  assert.ok(help.output.text.indexOf("Don't forget to use :skip night") < help.output.text.indexOf("Use one universal command"));
   assert.doesNotMatch(runtime.logs.join("\n"), /unexpected error|cannot read|typeerror/i);
 
   const autoCards = submit(runtime, "/AC", "Auto-Cards is enabled.");

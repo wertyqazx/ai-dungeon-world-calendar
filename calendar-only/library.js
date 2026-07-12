@@ -684,6 +684,7 @@ function WorldCalendar(hook, inputText) {
   };
 
   const calendarNotes = () => [
+    "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
     "AI Dungeon World Calendar v1.0.0",
     clock.lastCardEditError ? `Last edit error: ${clock.lastCardEditError}` : "Editable state is valid.",
     "Edit only the Date and Location lines at the top of the Entry.",
@@ -1378,6 +1379,8 @@ function WorldCalendar(hook, inputText) {
 
   const helpText = () => [
     ">>> World Calendar Commands",
+    "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
+    "",
     "Use one universal command: :skip <duration>",
     "",
     "Examples:",
