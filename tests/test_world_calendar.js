@@ -98,6 +98,19 @@ function card(runtime, title) {
 
 {
   const runtime = buildRuntime();
+  runtime.WorldCalendarSettings.ENABLE_TRAVEL = true;
+  const corrected = submit(runtime, ":setlocation Old Ruins, Western Lands");
+  assert.match(corrected.output, /Old Ruins, Western Lands/);
+
+  const journey = submit(runtime, ":travel Rivergate", "The road reaches Rivergate.");
+  assert.match(journey.output, /Travel time: 15 days/);
+  assert.match(journey.output, /Route estimate: 1 day to Hearthport/);
+  assert.match(journey.context, /starting point was not a configured city/i);
+  assert.equal(runtime.state.WorldCalendar.location.name, "Rivergate");
+}
+
+{
+  const runtime = buildRuntime();
   runtime.WorldCalendarSettings.START_DATE = { year: 42, month: 7, day: 9 };
   runtime.WorldCalendarSettings.ERA = "CE";
   const date = submit(runtime, ":date");

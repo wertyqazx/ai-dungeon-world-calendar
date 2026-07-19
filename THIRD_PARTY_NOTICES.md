@@ -1,8 +1,17 @@
 # Third-party notices
 
+## Auto-Cards
+
+The recommended combined distribution in `calendar-autocards` contains
+[Auto-Cards](https://github.com/LewdLeah/Auto-Cards).
+
+- Copyright: 2025 LewdLeah
+- License: MIT
+- Preserved notice and license: `calendar-autocards/vendor/auto-cards`
+
 ## Inner Self and Auto-Cards
 
-The combined distribution in `calendar-inner-self-autocards` contains
+The experimental distribution in `calendar-inner-self-autocards` contains
 [Inner Self](https://github.com/LewdLeah/Inner-Self), including Auto-Cards.
 
 - Copyright: 2026 LewdLeah

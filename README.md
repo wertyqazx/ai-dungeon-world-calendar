@@ -8,10 +8,11 @@ scenarios. The public package contains no setting-specific lore.
 | Version | Use it when | AI Dungeon files |
 | --- | --- | --- |
 | [Calendar only](calendar-only) | You only need the calendar, events, and optional travel | `calendar-only/*.js` |
-| [Calendar + Inner Self + Auto-Cards](calendar-inner-self-autocards) | You also want Inner Self and its included Auto-Cards system | `calendar-inner-self-autocards/*.js` |
+| [Calendar + Auto-Cards](calendar-autocards) | You want automatic Story Card generation without Inner Self (recommended combined setup) | `calendar-autocards/*.js` |
+| [Calendar + Inner Self + Auto-Cards](calendar-inner-self-autocards) | You want all three systems together (experimental) | `calendar-inner-self-autocards/*.js` |
 
 Each version has its own README and four ready-to-paste AI Dungeon script
-files. Do not mix files between the two folders.
+files. Do not mix files between the three folders.
 
 ## Features
 
@@ -76,7 +77,7 @@ npm test
 ## Licensing
 
 The original World Calendar code is available under the repository's
-[MIT License](LICENSE). The combined version includes Inner Self and
-Auto-Cards by LewdLeah under their original MIT license. See
-[third-party notices](THIRD_PARTY_NOTICES.md) and the preserved upstream files
-inside `calendar-inner-self-autocards/vendor/inner-self`.
+[MIT License](LICENSE). The combined versions include Auto-Cards and, in the
+experimental distribution, Inner Self by LewdLeah under their original MIT
+licenses. See [third-party notices](THIRD_PARTY_NOTICES.md) and the attribution
+files inside each combined distribution's `vendor` folder.
