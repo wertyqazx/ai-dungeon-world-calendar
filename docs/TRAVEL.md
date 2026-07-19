@@ -10,7 +10,7 @@ At the beginning of the selected version's `library.js`:
 ENABLE_TRAVEL: true
 ```
 
-Before enabling it, configure the three sections below.
+Before enabling it, configure the sections below.
 
 ## 1. Location groups
 
@@ -43,6 +43,7 @@ TRAVEL_NODES: [
     name: "Hearthport",
     state: "Example Kingdom",
     continent: "Western Lands",
+    access: 0,
     aliases: ["Hearthport Academy"]
   }
 ]
@@ -53,9 +54,38 @@ Requirements:
 - `id` must be unique and should use lowercase letters, numbers, and underscores.
 - `name` is shown to players.
 - `state` and `continent` must match the location groups.
+- `access` is an optional non-negative number of days used when estimating a
+  trip from a custom place in the same region or continent.
 - `aliases` can map academies or alternative spellings to the same destination.
 
-## 3. Route durations
+## 3. Optional origin estimation
+
+The calendar can begin a journey from a custom place even when that place is
+not a travel node. Configure a representative hub for each supported region
+and continent:
+
+```javascript
+STATE_TRAVEL_HUBS: {
+  "Example Kingdom": "hearthport"
+},
+CONTINENT_TRAVEL_HUBS: {
+  "Western Lands": "hearthport"
+},
+CONTINENT_ALIASES: [
+  { name: "Western Lands", aliases: ["Western Lands", "the west"] }
+]
+```
+
+The player can then use a correction such as
+`:setlocation Old Ruins, Western Lands`. A later journey includes an estimated
+access leg to `hearthport`, followed by the configured route duration. The
+access leg is the rounded average of the relevant nodes' `access` values, with
+a minimum of one day.
+
+All hub IDs must refer to entries in `TRAVEL_NODES`. Leave the hub maps and
+continent aliases empty if you only want travel to begin at exact nodes.
+
+## 4. Route durations
 
 `TRAVEL_DAYS` stores one duration for every unordered pair of destinations:
 
