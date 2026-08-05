@@ -14,4 +14,7 @@ Edit `WorldCalendarSettings` near the beginning of `library.js` before using
 the scripts. Travel is disabled by default and can be enabled after locations
 and route durations have been configured.
 
+Enter all World Calendar commands as **Story actions**, not Do actions. Do may
+rewrite the input and cause otherwise valid commands to fail.
+
 See the repository-level guides in [`../docs`](../docs).
