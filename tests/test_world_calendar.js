@@ -57,9 +57,11 @@ function card(runtime, title) {
   assert.equal(card(runtime, "Custom Events").type, "events");
   assert.equal(runtime.WorldCalendarSettings.ENABLE_TRAVEL, false);
   assert.match(card(runtime, "World Calendar").description, /Don't forget to use :skip night/);
+  assert.match(card(runtime, "World Calendar").description, /Story actions, not Do actions/);
 
   const help = submit(runtime, ":help");
   assert.match(help.output, /Don't forget to use :skip night/);
+  assert.match(help.output, /Story actions, not Do actions/);
   assert.match(help.output, /World Calendar Commands\n\nIMPORTANT/);
   assert.ok(help.output.indexOf("Don't forget to use :skip night") < help.output.indexOf("Use one universal command"));
   assert.doesNotMatch(help.output, /:travel/);
