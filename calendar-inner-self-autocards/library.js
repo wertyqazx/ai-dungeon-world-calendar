@@ -9542,6 +9542,7 @@ function WorldCalendar(hook, inputText) {
 
   const calendarNotes = () => [
     "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
+    "Enter all World Calendar commands as Story actions, not Do actions. Do may rewrite the input and cause valid commands to fail.",
     "AI Dungeon World Calendar v1.1.0",
     clock.lastCardEditError ? `Last edit error: ${clock.lastCardEditError}` : "Editable state is valid.",
     "Edit only the Date and Location lines at the top of the Entry.",
@@ -10235,6 +10236,9 @@ function WorldCalendar(hook, inputText) {
 
   const helpText = () => [
     ">>> World Calendar Commands",
+    "",
+    "IMPORTANT: Enter all World Calendar commands as Story actions, not Do actions.",
+    "Do may rewrite the input and cause valid commands to fail.",
     "",
     "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
     "",
