@@ -44,6 +44,9 @@ The calendar and all event features work with travel disabled.
 
 ## Commands
 
+Enter all World Calendar commands as **Story actions**, not Do actions. Do may
+rewrite the input and cause otherwise valid commands to fail.
+
 ```text
 :skip 10 days
 :skip 2 weeks
