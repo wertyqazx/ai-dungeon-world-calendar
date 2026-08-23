@@ -20,7 +20,11 @@ The upstream Inner Self source is retained without modification under
 `vendor/inner-self`, together with its original README and MIT license. The
 four top-level files in this folder are the ready-to-paste combined version.
 
-Enter all World Calendar commands as **Story actions**, not Do actions. Do may
-rewrite the input and cause otherwise valid commands to fail.
+World Calendar v1.1.1 supports safe-skip confirmations, three-action undo, and
+staged journeys with intermediate stops.
+
+Enter all World Calendar commands as **Story actions**, not Do or Say actions.
+Those action types may rewrite the input and cause otherwise valid commands to
+fail.
 
 See the repository-level guides in [`../docs`](../docs).
