@@ -15,7 +15,11 @@ Edit `WorldCalendarSettings` near the World Calendar section of `library.js`
 before use. Auto-Cards v1.1.3 is enabled by default in this distribution and
 can be configured through its in-game card or `/AC` command.
 
-Enter all World Calendar commands as **Story actions**, not Do actions. Do may
-rewrite the input and cause otherwise valid commands to fail.
+World Calendar v1.1.1 supports safe-skip confirmations, three-action undo, and
+staged journeys with intermediate stops.
+
+Enter all World Calendar commands as **Story actions**, not Do or Say actions.
+Those action types may rewrite the input and cause otherwise valid commands to
+fail.
 
 See the repository-level guides in [`../docs`](../docs).
