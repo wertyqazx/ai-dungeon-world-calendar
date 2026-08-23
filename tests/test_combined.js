@@ -87,15 +87,15 @@ function submit(runtime, input, modelOutput = "The story continues.") {
   assert.ok(runtime.storyCards.some((card) => card.title === "World Calendar"));
   assert.ok(runtime.storyCards.some((card) => card.title === "Custom Events"));
   assert.ok(runtime.storyCards.some((card) => /Configure\s+Inner Self/i.test(card.title)));
-  assert.equal(runtime.storyCards.find((card) => card.title === "World Calendar").type, "calendar");
+  assert.equal(runtime.storyCards.find((card) => card.title === "World Calendar").type, "class");
   assert.equal(runtime.storyCards.find((card) => card.title === "Custom Events").type, "events");
   assert.match(runtime.storyCards.find((card) => card.title === "World Calendar").description, /Don't forget to use :skip night/);
-  assert.match(runtime.storyCards.find((card) => card.title === "World Calendar").description, /Story actions, not Do actions/);
+  assert.match(runtime.storyCards.find((card) => card.title === "World Calendar").description, /Story actions, not Do or Say actions/);
   assert.match(normal.context.text, /World Time/);
 
   const help = submit(runtime, ":help", "Calendar help requested.");
   assert.match(help.output.text, /Don't forget to use :skip night/);
-  assert.match(help.output.text, /Story actions, not Do actions/);
+  assert.match(help.output.text, /Story actions, not Do or Say actions/);
   assert.match(help.output.text, /World Calendar Commands\n\nIMPORTANT/);
   assert.ok(help.output.text.indexOf("Don't forget to use :skip night") < help.output.text.indexOf("Use one universal command"));
   assert.doesNotMatch(runtime.logs.join("\n"), /unexpected error|cannot read|typeerror/i);
