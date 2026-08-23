@@ -53,15 +53,17 @@ function card(runtime, title) {
   const date = submit(runtime, ":date");
   assert.match(date.output, /1 January 1000 AE/);
   assert.match(date.context, /Current location: Hearthport, Example Kingdom, Western Lands/);
-  assert.equal(card(runtime, "World Calendar").type, "calendar");
+  assert.equal(card(runtime, "World Calendar").type, "class");
   assert.equal(card(runtime, "Custom Events").type, "events");
   assert.equal(runtime.WorldCalendarSettings.ENABLE_TRAVEL, false);
   assert.match(card(runtime, "World Calendar").description, /Don't forget to use :skip night/);
-  assert.match(card(runtime, "World Calendar").description, /Story actions, not Do actions/);
+  assert.match(card(runtime, "World Calendar").description, /Story actions, not Do or Say actions/);
+  assert.match(card(runtime, "World Calendar").description, /Auto-Skip Limit: 7 days/);
+  assert.match(card(runtime, "World Calendar").description, /Complete Full Route Immediately: false/);
 
   const help = submit(runtime, ":help");
   assert.match(help.output, /Don't forget to use :skip night/);
-  assert.match(help.output, /Story actions, not Do actions/);
+  assert.match(help.output, /Story actions, not Do or Say actions/);
   assert.match(help.output, /World Calendar Commands\n\nIMPORTANT/);
   assert.ok(help.output.indexOf("Don't forget to use :skip night") < help.output.indexOf("Use one universal command"));
   assert.doesNotMatch(help.output, /:travel/);
@@ -81,21 +83,24 @@ function card(runtime, title) {
 {
   const runtime = buildRuntime();
   runtime.WorldCalendarSettings.ENABLE_TRAVEL = true;
-  const journey = submit(runtime, ":travel Rivergate", "The road reaches Rivergate.");
+  const preview = submit(runtime, ":travel Rivergate", "The road reaches Rivergate.");
+  assert.match(preview.output, /Confirm Journey/);
+  assert.match(preview.output, /Full route: ➤ Hearthport → Rivergate/);
+  assert.match(preview.output, /Remaining planned travel time: 14 days/);
+  assert.equal(runtime.state.WorldCalendar.location.name, "Hearthport");
+  const journey = submit(runtime, ":yes", "The road reaches Rivergate.");
   assert.match(journey.output, /Travel time: 14 days/);
   assert.match(journey.output, /Arrival date: 15 January 1000 AE/);
   assert.equal(runtime.state.WorldCalendar.location.name, "Rivergate");
 
   const help = submit(runtime, ":help");
   assert.match(help.output, /:travel <destination>/);
-  assert.match(help.output, /major cities and locations configured by the scenario creator/);
-  assert.match(help.output, /unknown, custom, or too specific/);
-  assert.match(help.output, /:setlocation <destination>/);
+  assert.match(help.output, /Available destinations are configured by the scenario creator/);
+  assert.match(help.output, /custom starting point/);
+  assert.match(help.output, /:setlocation <place, region or continent>/);
 
-  const routeKeys = Object.keys(runtime.WorldCalendarSettings.TRAVEL_DAYS);
   assert.equal(runtime.WorldCalendarSettings.TRAVEL_NODES.length, 4);
-  assert.equal(routeKeys.length, 6);
-  assert.equal(new Set(routeKeys).size, 6);
+  assert.equal(runtime.WorldCalendarSettings.TRAVEL_EDGES.length, 4);
 }
 
 {
@@ -104,10 +109,15 @@ function card(runtime, title) {
   const corrected = submit(runtime, ":setlocation Old Ruins, Western Lands");
   assert.match(corrected.output, /Old Ruins, Western Lands/);
 
-  const journey = submit(runtime, ":travel Rivergate", "The road reaches Rivergate.");
-  assert.match(journey.output, /Travel time: 15 days/);
-  assert.match(journey.output, /Route estimate: 1 day to Hearthport/);
-  assert.match(journey.context, /starting point was not a configured city/i);
+  const preview = submit(runtime, ":travel Rivergate", "The road reaches Rivergate.");
+  assert.match(preview.output, /Old Ruins, Western Lands → Hearthport → Rivergate/);
+  assert.match(preview.output, /estimated 1-day journey to Hearthport/);
+  submit(runtime, ":yes", "The road reaches Hearthport.");
+  assert.equal(runtime.state.WorldCalendar.location.name, "Hearthport");
+  const continuation = submit(runtime, ":travel continue");
+  assert.match(continuation.output, /✓ Old Ruins, Western Lands → ➤ Hearthport → Rivergate/);
+  const journey = submit(runtime, ":yes", "The road reaches Rivergate.");
+  assert.match(journey.output, /Travel time: 14 days/);
   assert.equal(runtime.state.WorldCalendar.location.name, "Rivergate");
 }
 
@@ -165,6 +175,68 @@ function card(runtime, title) {
   assert.doesNotMatch(context, /Elapsed time: 5 days/);
   assert.equal(output, "The story resumes.");
   assert.equal(runtime.state.WorldCalendar.absoluteDay, resultingDay);
+}
+
+{
+  const runtime = buildRuntime();
+  const before = runtime.state.WorldCalendar?.absoluteDay;
+  const preview = submit(runtime, ":skip 10 days");
+  const startingDay = runtime.state.WorldCalendar.absoluteDay;
+  assert.match(preview.output, /Confirm Time Skip/);
+  assert.match(preview.output, /\(:yes\/:no\)/);
+  assert.equal(startingDay, before ?? startingDay);
+  const cancelled = submit(runtime, ":no");
+  assert.match(cancelled.output, /Cancelled/);
+  assert.equal(runtime.state.WorldCalendar.absoluteDay, startingDay);
+  submit(runtime, ":skip 10 days");
+  submit(runtime, ":yes", "Ten days pass.");
+  assert.equal(runtime.state.WorldCalendar.absoluteDay, startingDay + 10);
+  const undone = submit(runtime, ":undo");
+  assert.match(undone.output, /Undo Complete/);
+  assert.equal(runtime.state.WorldCalendar.absoluteDay, startingDay);
+}
+
+{
+  const runtime = buildRuntime();
+  runtime.WorldCalendarSettings.ENABLE_TRAVEL = true;
+  const before = submit(runtime, ":date");
+  const startingDay = runtime.state.WorldCalendar.absoluteDay;
+  const preview = submit(runtime, ":travel Eastwatch");
+  assert.match(preview.output, /Full route: ➤ Hearthport → Sunharbor → Eastwatch/);
+  assert.match(preview.output, /Stages: 2/);
+  assert.match(preview.output, /Remaining planned travel time: 38 days/);
+  submit(runtime, ":yes", "The ship reaches Sunharbor.");
+  assert.equal(runtime.state.WorldCalendar.location.name, "Sunharbor");
+  assert.equal(runtime.state.WorldCalendar.absoluteDay, startingDay + 20);
+  const continuation = submit(runtime, ":travel continue");
+  assert.match(continuation.output, /✓ Hearthport → ➤ Sunharbor → Eastwatch/);
+  assert.match(continuation.output, /Remaining planned travel time: 18 days/);
+  assert.match(continuation.output, /Travel mode: sea/);
+  void before;
+}
+
+{
+  const runtime = buildRuntime();
+  runtime.WorldCalendarSettings.ENABLE_TRAVEL = true;
+  submit(runtime, ":date");
+  const calendar = card(runtime, "World Calendar");
+  calendar.description = calendar.description.replace(
+    "Complete Full Route Immediately: false",
+    "Complete Full Route Immediately: true"
+  );
+  const startingDay = runtime.state.WorldCalendar.absoluteDay;
+  const preview = submit(runtime, ":travel Eastwatch");
+  assert.match(preview.output, /Confirm Full Journey/);
+  assert.match(preview.output, /Stages to complete: 2/);
+  assert.equal(runtime.state.WorldCalendar.location.name, "Hearthport");
+  const completed = submit(runtime, ":yes", "The entire journey passes.");
+  assert.match(completed.output, /\[Full Journey:/);
+  assert.equal(runtime.state.WorldCalendar.location.name, "Eastwatch");
+  assert.equal(runtime.state.WorldCalendar.absoluteDay, startingDay + 38);
+  assert.equal(runtime.state.WorldCalendar.activeRoute, null);
+  submit(runtime, ":undo");
+  assert.equal(runtime.state.WorldCalendar.location.name, "Hearthport");
+  assert.equal(runtime.state.WorldCalendar.absoluteDay, startingDay);
 }
 
 {
