@@ -19,9 +19,13 @@ files. Do not mix files between the three folders.
 - Configurable starting date and era.
 - Gregorian-style twelve-month calendar with leap years.
 - Universal `:skip <duration>` command and `:skip night`.
+- Configurable safe-skip threshold with `:yes` / `:no` confirmation.
+- `:undo` for the latest completed skip or journey within three actions.
 - Editable `World Calendar` Story Card.
 - Player-managed yearly and one-time events through `Custom Events`.
-- Optional location and travel system, disabled by default.
+- Optional staged travel over a creator-defined route graph, disabled by default.
+- Intermediate stops, route progress, travel modes, and remaining travel time.
+- Optional one-confirmation completion of an entire multi-stage route.
 - Event cards with `Active` and `Concluded` states.
 - Retry, Continue, and Erase protection for calendar transactions.
 - No external runtime dependencies.
@@ -44,8 +48,9 @@ The calendar and all event features work with travel disabled.
 
 ## Commands
 
-Enter all World Calendar commands as **Story actions**, not Do actions. Do may
-rewrite the input and cause otherwise valid commands to fail.
+Enter all World Calendar commands as **Story actions**, not Do or Say actions.
+Those action types may rewrite the input and cause otherwise valid commands to
+fail.
 
 ```text
 :skip 10 days
@@ -53,6 +58,9 @@ rewrite the input and cause otherwise valid commands to fail.
 :skip 3 months
 :skip 1 year 2 months 3 days
 :skip night
+:yes
+:no
+:undo
 :date
 :where
 :help
@@ -62,7 +70,16 @@ When travel is enabled:
 
 ```text
 :travel Rivergate
+:travel continue
+:travel end
+:setlocation Old Ruins, Western Lands
 ```
+
+Skips of up to `AUTO_SKIP_LIMIT_DAYS` execute immediately; the default is seven
+days. Longer skips first show the date range and relevant events. Travel always
+shows its next stage before departure. Change `Complete Full Route Immediately`
+in the generated calendar card if players should finish a whole route after one
+confirmation instead of stopping at every intermediate destination.
 
 ## Configuration guides
 
