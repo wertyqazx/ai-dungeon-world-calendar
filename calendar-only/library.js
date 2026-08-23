@@ -1,4 +1,4 @@
-// AI Dungeon World Calendar v1.1.0
+// AI Dungeon World Calendar v1.1.1
 // Paste this entire file into the AI Dungeon "Library" script tab.
 
 /**
@@ -9,6 +9,7 @@ globalThis.WorldCalendarSettings = {
   ERA: "AE",
   CALENDAR_CARD_TITLE: "World Calendar",
   MAX_SKIP_YEARS: 1000,
+  AUTO_SKIP_LIMIT_DAYS: 7,
   MAX_RECENT_EVENTS: 5,
 
   // Travel is optional. The calendar and events work when this is false.
@@ -50,8 +51,7 @@ globalThis.WorldCalendarSettings = {
     { id: "eastwatch", name: "Eastwatch", state: "Frontier League", continent: "Eastern Expanse", access: 3, aliases: [] }
   ],
 
-  // Optional hubs let travel begin from a custom place when its broader
-  // region or continent is known. The access estimate uses node.access.
+  // Optional hubs allow travel to begin from a custom place in a known region.
   STATE_TRAVEL_HUBS: {
     "Example Kingdom": "hearthport",
     "Coastal Republic": "sunharbor",
@@ -68,55 +68,21 @@ globalThis.WorldCalendarSettings = {
     { name: "Eastern Expanse", aliases: ["Eastern Expanse"] }
   ],
 
-  // Symmetric route table. Each unordered pair appears exactly once.
-  TRAVEL_DAYS: {
-    "hearthport|rivergate": 14,
-    "hearthport|sunharbor": 45,
-    "hearthport|eastwatch": 80,
-    "rivergate|sunharbor": 38,
-    "rivergate|eastwatch": 72,
-    "eastwatch|sunharbor": 55
-  },
-
-  // Annual events. Copy the commented example to create your own.
-  RECURRING_FESTIVALS: [
-    /*
-    {
-      id: "founding_day",
-      title: "Founding Day",
-      month: 6,
-      day: 10,
-      durationDays: 2,
-      regions: ["Example Kingdom"],
-      prompt: "The Example Kingdom celebrates its founding.",
-      card: {
-        title: "Founding Day",
-        keys: "Founding Day",
-        entry: "Founding Day is an annual celebration in the Example Kingdom.",
-        type: "events"
-      }
-    }
-    */
+  // Direct symmetric links used to build shortest staged routes.
+  // mode is displayed to the player. transition and restrictedState are optional.
+  TRAVEL_EDGES: [
+    { leftId: "hearthport", rightId: "rivergate", days: 14, mode: "land" },
+    { leftId: "hearthport", rightId: "sunharbor", days: 20, mode: "sea", transition: true },
+    { leftId: "rivergate", rightId: "eastwatch", days: 32, mode: "land" },
+    { leftId: "sunharbor", rightId: "eastwatch", days: 18, mode: "sea", transition: true }
   ],
 
-  // One-time events. Copy the commented example to create your own.
-  SCHEDULED_EVENTS: [
-    /*
-    {
-      id: "royal_wedding",
-      date: { year: 1001, month: 4, day: 12 },
-      endDate: { year: 1001, month: 4, day: 14 },
-      title: "Royal Wedding",
-      prompt: "The royal wedding begins.",
-      card: {
-        title: "Royal Wedding",
-        keys: "Royal Wedding",
-        entry: "A major royal wedding takes place in 1001 AE.",
-        type: "events"
-      }
-    }
-    */
-  ]
+  // Legacy complete TRAVEL_DAYS tables remain supported when TRAVEL_EDGES is empty.
+  TRAVEL_DAYS: {},
+
+  // Annual and one-time events. Add your own entries using docs/EVENTS.md.
+  RECURRING_FESTIVALS: [],
+  SCHEDULED_EVENTS: []
 };
 
 function WorldCalendar(hook, inputText) {
@@ -128,6 +94,7 @@ function WorldCalendar(hook, inputText) {
   const CUSTOM_EVENTS_MARKER = "%WC_CUSTOM_EVENTS_V1%";
   const CUSTOM_EVENTS_KEY = CUSTOM_EVENTS_MARKER;
   const SETTINGS = globalThis.WorldCalendarSettings || {};
+  const UNDO_WINDOW_ACTIONS = 3;
   const MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
@@ -141,10 +108,22 @@ function WorldCalendar(hook, inputText) {
     ? SETTINGS.CONTINENT_TRAVEL_HUBS
     : {};
   const CONTINENT_ALIASES = Array.isArray(SETTINGS.CONTINENT_ALIASES) ? SETTINGS.CONTINENT_ALIASES : [];
-  const TRAVEL_DAYS = SETTINGS.TRAVEL_DAYS && typeof SETTINGS.TRAVEL_DAYS === "object"
+  const configuredEdges = Array.isArray(SETTINGS.TRAVEL_EDGES) ? SETTINGS.TRAVEL_EDGES : [];
+  const legacyTravelDays = SETTINGS.TRAVEL_DAYS && typeof SETTINGS.TRAVEL_DAYS === "object"
     ? SETTINGS.TRAVEL_DAYS
     : {};
+  const TRAVEL_EDGES = configuredEdges.length
+    ? configuredEdges.map((edge) => ({ ...edge }))
+    : Object.entries(legacyTravelDays).map(([pair, days]) => {
+        const [leftId, rightId] = pair.split("|");
+        return { leftId, rightId, days, mode: "land" };
+      });
+  const TRAVEL_DAYS = {};
+  for (const edge of TRAVEL_EDGES) {
+    TRAVEL_DAYS[[edge.leftId, edge.rightId].sort().join("|")] = edge.days;
+  }
   const TRAVEL_ENABLED = SETTINGS.ENABLE_TRAVEL === true;
+
   let text = (typeof inputText === "string") ? inputText : "";
 
   if (
@@ -154,7 +133,7 @@ function WorldCalendar(hook, inputText) {
     !Array.isArray(globalThis.storyCards)
   ) {
     if (typeof log === "function") {
-      log("World Calendar: required AI Dungeon globals are unavailable.");
+      log("AI Dungeon World Calendar: required AI Dungeon globals are unavailable.");
     }
     return text || ZERO_WIDTH_SPACE;
   }
@@ -217,25 +196,52 @@ function WorldCalendar(hook, inputText) {
 
   const startDate = isValidDate(SETTINGS.START_DATE)
     ? SETTINGS.START_DATE
-    : { year: 1000, month: 1, day: 1 };
+    : { year: 4812, month: 1, day: 1 };
   const startOrdinal = dateToOrdinal(startDate);
 
   const clock = state.WorldCalendar = state.WorldCalendar || {};
-  clock.version = 5;
+  clock.version = 9;
   if (!Number.isInteger(clock.absoluteDay) || clock.absoluteDay < 0) {
     clock.absoluteDay = startOrdinal;
   }
   if (!Number.isInteger(clock.nextTransactionId) || clock.nextTransactionId < 1) {
     clock.nextTransactionId = 1;
   }
+  if (!Number.isInteger(clock.inputTurnSerial) || clock.inputTurnSerial < 0) {
+    clock.inputTurnSerial = 0;
+  }
+  if (hook === "input") clock.inputTurnSerial++;
   if (!Array.isArray(clock.firedEvents)) clock.firedEvents = [];
   if (!Array.isArray(clock.endedEvents)) clock.endedEvents = [];
   if (!Array.isArray(clock.eventLog)) clock.eventLog = [];
   if (!Array.isArray(clock.journal)) clock.journal = [];
   if (!Array.isArray(clock.customEvents)) clock.customEvents = [];
   if (!Array.isArray(clock.customEventIds)) clock.customEventIds = [];
+  if (!clock.pending || typeof clock.pending !== "object" || Array.isArray(clock.pending)) {
+    clock.pending = null;
+  }
+  const defaultAutoSkipLimit = Number.isInteger(SETTINGS.AUTO_SKIP_LIMIT_DAYS)
+    ? Math.max(0, SETTINGS.AUTO_SKIP_LIMIT_DAYS)
+    : 7;
+  if (!Number.isInteger(clock.autoSkipLimitDays) || clock.autoSkipLimitDays < 0) {
+    clock.autoSkipLimitDays = defaultAutoSkipLimit;
+  }
   if (!clock.active || typeof clock.active !== "object" || Array.isArray(clock.active)) {
     clock.active = null;
+  }
+  if (
+    !clock.activeRoute || typeof clock.activeRoute !== "object" || Array.isArray(clock.activeRoute) ||
+    !Array.isArray(clock.activeRoute.legs) || !Number.isInteger(clock.activeRoute.nextLegIndex) ||
+    clock.activeRoute.nextLegIndex < 0 || clock.activeRoute.nextLegIndex >= clock.activeRoute.legs.length
+  ) {
+    clock.activeRoute = null;
+  } else {
+    const validRoute = clock.activeRoute.legs.every((leg) => (
+      leg && typeof leg === "object" &&
+      typeof leg.toNodeId === "string" && TRAVEL_NODES.some((node) => node.id === leg.toNodeId) &&
+      Number.isInteger(leg.travelDays) && leg.travelDays > 0
+    ));
+    if (!validRoute) clock.activeRoute = null;
   }
   if (clock.active && clock.active.kind === "skip" && !Array.isArray(clock.active.transitions)) {
     clock.active.transitions = Array.isArray(clock.active.events) ? clock.active.events : [];
@@ -348,6 +354,19 @@ function WorldCalendar(hook, inputText) {
     return null;
   };
 
+  const freeTextLocation = (source, detectedFrom) => {
+    const name = String(source || "").trim();
+    if (!name) return null;
+    return {
+      id: locationId(name, "Unknown"),
+      name,
+      state: "Unknown",
+      continent: "Unknown",
+      status: "stationary",
+      detectedFrom
+    };
+  };
+
   const unknownLocation = () => ({
     id: "unknown",
     name: "Unknown Location",
@@ -380,14 +399,32 @@ function WorldCalendar(hook, inputText) {
   };
 
   const configuredStartLocation = () => {
-    const location = SETTINGS.START_LOCATION;
-    if (!isUsableLocation(location)) return null;
-    return {
-      ...location,
-      id: String(location.id || locationId(location.name, location.state)),
-      status: "stationary",
-      detectedFrom: "settings"
-    };
+    const start = SETTINGS.START_LOCATION;
+    if (!start || typeof start !== "object" || Array.isArray(start)) return null;
+    if (
+      typeof start.name !== "string" || typeof start.state !== "string" ||
+      typeof start.continent !== "string"
+    ) return null;
+    const node = TRAVEL_NODES.find((candidate) => candidate.id === start.id) ||
+      TRAVEL_NODES.find((candidate) => candidate.name === start.name && candidate.state === start.state);
+    return node
+      ? {
+          id: locationId(node.name, node.state),
+          name: node.name,
+          state: node.state,
+          continent: node.continent,
+          status: "stationary",
+          travelNodeId: node.id,
+          detectedFrom: "configured start"
+        }
+      : {
+          id: typeof start.id === "string" ? start.id : locationId(start.name, start.state),
+          name: start.name,
+          state: start.state,
+          continent: start.continent,
+          status: "stationary",
+          detectedFrom: "configured start"
+        };
   };
 
   if (!isUsableLocation(clock.location)) clock.location = unknownLocation();
@@ -398,6 +435,7 @@ function WorldCalendar(hook, inputText) {
   const locationLabel = () => {
     const location = clock.location;
     if (location.state === "Unknown") {
+      if (!location.continent || location.continent === "Unknown") return location.name;
       return containsPhrase(location.name, location.continent)
         ? location.name
         : `${location.name}, ${location.continent}`;
@@ -458,6 +496,287 @@ function WorldCalendar(hook, inputText) {
     return Number.isInteger(days) && days > 0 ? days : null;
   };
 
+  const getTravelEdge = (origin, destination) => {
+    if (!origin || !destination || origin.id === destination.id) return null;
+    const key = travelPairKey(origin.id, destination.id);
+    return TRAVEL_EDGES.find((edge) => travelPairKey(edge.leftId, edge.rightId) === key) || null;
+  };
+
+  const travelNodeById = (id) => TRAVEL_NODES.find((node) => node.id === id) || null;
+
+  const travelGraphEdges = TRAVEL_EDGES.filter((edge) => (
+    travelNodeById(edge.leftId) && travelNodeById(edge.rightId) &&
+    Number.isInteger(edge.days) && edge.days > 0
+  ));
+
+  const findTravelRoute = (origin, destination) => {
+    if (!origin || !destination) return null;
+    if (origin.id === destination.id) return [origin];
+
+    const distance = new Map(TRAVEL_NODES.map((node) => [node.id, Number.POSITIVE_INFINITY]));
+    const previous = new Map();
+    const unvisited = new Set(TRAVEL_NODES.map((node) => node.id));
+    const stayOnContinent = origin.continent === destination.continent;
+    distance.set(origin.id, 0);
+
+    while (unvisited.size) {
+      let currentId = null;
+      let currentDistance = Number.POSITIVE_INFINITY;
+      for (const id of unvisited) {
+        const candidateDistance = distance.get(id);
+        if (candidateDistance < currentDistance) {
+          currentId = id;
+          currentDistance = candidateDistance;
+        }
+      }
+      if (currentId == null || !Number.isFinite(currentDistance)) break;
+      unvisited.delete(currentId);
+      if (currentId === destination.id) break;
+
+      for (const edge of travelGraphEdges) {
+        if (stayOnContinent && edge.transition) continue;
+        if (
+          edge.restrictedState &&
+          origin.state !== edge.restrictedState && destination.state !== edge.restrictedState
+        ) continue;
+        const neighborId = edge.leftId === currentId
+          ? edge.rightId
+          : edge.rightId === currentId ? edge.leftId : null;
+        if (!neighborId || !unvisited.has(neighborId)) continue;
+        const nextDistance = currentDistance + edge.days;
+        if (nextDistance < distance.get(neighborId)) {
+          distance.set(neighborId, nextDistance);
+          previous.set(neighborId, currentId);
+        }
+      }
+    }
+
+    if (!previous.has(destination.id)) return null;
+    const ids = [destination.id];
+    while (ids[0] !== origin.id) {
+      const parent = previous.get(ids[0]);
+      if (!parent) return null;
+      ids.unshift(parent);
+    }
+    return ids.map(travelNodeById).filter(Boolean);
+  };
+
+  const cloneRoute = (route) => route ? {
+    ...route,
+    stopLabels: Array.isArray(route.stopLabels) ? [...route.stopLabels] : [],
+    legs: Array.isArray(route.legs) ? route.legs.map((leg) => ({ ...leg })) : []
+  } : null;
+
+  const routeProgressLabel = (route, currentIndex = route?.nextLegIndex || 0) => (
+    route.stopLabels.map((label, index) => {
+      if (index < currentIndex) return `✓ ${label}`;
+      if (index === currentIndex) return `➤ ${label}`;
+      return label;
+    }).join(" → ")
+  );
+
+  const remainingRouteDays = (route, startIndex = route?.nextLegIndex || 0) => (
+    route.legs.slice(startIndex).reduce((sum, leg) => sum + leg.travelDays, 0)
+  );
+
+  const routeTravelMode = (legs) => {
+    const modes = [...new Set(legs.map((leg) => leg.travelMode || "land"))];
+    return modes.length === 1 ? modes[0] : modes.join(" + ");
+  };
+
+  const buildTravelRoute = (origin, originEstimate, destination, routeId) => {
+    const nodePath = findTravelRoute(origin, destination);
+    if (!nodePath || !nodePath.length) return null;
+    const legs = [];
+    const stopLabels = [];
+
+    if (originEstimate) {
+      stopLabels.push(locationLabel());
+      legs.push({
+        fromNodeId: null,
+        toNodeId: origin.id,
+        originName: clock.location.name,
+        originLabel: locationLabel(),
+        destinationName: origin.name,
+        destinationLabel: `${origin.name}, ${origin.state}`,
+        travelDays: originEstimate.accessDays,
+        travelMode: "land",
+        originWasEstimated: true,
+        accessDays: originEstimate.accessDays,
+        hubLabel: `${origin.name}, ${origin.state}`,
+        networkTravelDays: 0
+      });
+    }
+
+    for (let index = 0; index < nodePath.length; index++) {
+      const node = nodePath[index];
+      if (!stopLabels.length || stopLabels[stopLabels.length - 1] !== node.name) {
+        stopLabels.push(node.name);
+      }
+      if (index === 0) continue;
+      const from = nodePath[index - 1];
+      const travelEdge = getTravelEdge(from, node);
+      const travelDays = travelEdge && travelEdge.days;
+      if (!travelEdge || !Number.isInteger(travelDays)) return null;
+      legs.push({
+        fromNodeId: from.id,
+        toNodeId: node.id,
+        originName: from.name,
+        originLabel: `${from.name}, ${from.state}`,
+        destinationName: node.name,
+        destinationLabel: `${node.name}, ${node.state}`,
+        travelDays,
+        travelMode: travelEdge.mode || "land",
+        originWasEstimated: false,
+        accessDays: 0,
+        hubLabel: `${from.name}, ${from.state}`,
+        networkTravelDays: travelDays
+      });
+    }
+
+    if (!legs.length) return null;
+    return {
+      id: routeId,
+      originLabel: stopLabels[0],
+      finalDestinationId: destination.id,
+      finalDestinationLabel: `${destination.name}, ${destination.state}`,
+      stopLabels,
+      legs,
+      nextLegIndex: 0,
+      totalTravelDays: legs.reduce((sum, leg) => sum + leg.travelDays, 0),
+      status: "planned",
+      createdDay: clock.absoluteDay
+    };
+  };
+
+  const travelRequestForLeg = (route, legIndex) => {
+    const leg = route && route.legs && route.legs[legIndex];
+    const destination = leg && travelNodeById(leg.toNodeId);
+    if (!leg || !destination) return null;
+    const beforeDay = clock.absoluteDay;
+    const afterDay = beforeDay + leg.travelDays;
+    return {
+      kind: "travel",
+      beforeDay,
+      beforeLocationId: clock.location.id,
+      afterDay,
+      afterLocation: travelNodeLocation(destination, "travel command"),
+      originName: leg.originName,
+      destinationName: leg.destinationName,
+      originLabel: leg.originLabel,
+      destinationLabel: leg.destinationLabel,
+      travelDays: leg.travelDays,
+      travelMode: leg.travelMode || "land",
+      originWasEstimated: leg.originWasEstimated,
+      accessDays: leg.accessDays,
+      hubLabel: leg.hubLabel,
+      networkTravelDays: leg.networkTravelDays,
+      previewTransitions: previewCalendarTransitions(beforeDay, afterDay, destination.state),
+      routePlan: cloneRoute(route),
+      legIndex,
+      stageNumber: legIndex + 1,
+      stageCount: route.legs.length,
+      remainingStageCount: route.legs.length - legIndex,
+      routeLabel: routeProgressLabel(route, legIndex),
+      finalDestinationLabel: route.finalDestinationLabel,
+      totalTravelDays: route.totalTravelDays,
+      remainingTravelDays: remainingRouteDays(route, legIndex),
+      fullRoute: false
+    };
+  };
+
+  const travelRequestForRemainingRoute = (route, startIndex) => {
+    const legs = route?.legs?.slice(startIndex) || [];
+    const firstLeg = legs[0];
+    const lastLeg = legs[legs.length - 1];
+    const destination = lastLeg && travelNodeById(lastLeg.toNodeId);
+    if (!firstLeg || !destination) return null;
+
+    let cursor = clock.absoluteDay;
+    const previews = [];
+    for (const leg of legs) {
+      const stageDestination = travelNodeById(leg.toNodeId);
+      if (!stageDestination) return null;
+      const stageEnd = cursor + leg.travelDays;
+      previews.push(...previewCalendarTransitions(cursor, stageEnd, stageDestination.state));
+      cursor = stageEnd;
+    }
+
+    // The whole-range preview guarantees that scheduled events spanning two stages
+    // retain both their start and end notices. Per-stage previews add local festivals.
+    previews.push(...previewCalendarTransitions(clock.absoluteDay, cursor, "__WC_ROUTE__"));
+    const seenTransitions = new Set();
+    const previewTransitions = previews
+      .filter((transition) => {
+        const key = `${transition.id}|${transition.kind}|${transition.ordinal}`;
+        if (seenTransitions.has(key)) return false;
+        seenTransitions.add(key);
+        return true;
+      })
+      .sort((left, right) => left.ordinal - right.ordinal);
+
+    return {
+      kind: "travel",
+      beforeDay: clock.absoluteDay,
+      beforeLocationId: clock.location.id,
+      afterDay: cursor,
+      afterLocation: travelNodeLocation(destination, "travel command"),
+      originName: firstLeg.originName,
+      destinationName: lastLeg.destinationName,
+      originLabel: firstLeg.originLabel,
+      destinationLabel: lastLeg.destinationLabel,
+      travelDays: remainingRouteDays(route, startIndex),
+      travelMode: routeTravelMode(legs),
+      originWasEstimated: firstLeg.originWasEstimated,
+      accessDays: firstLeg.accessDays,
+      hubLabel: firstLeg.hubLabel,
+      networkTravelDays: legs.reduce((sum, leg) => sum + (leg.networkTravelDays || 0), 0),
+      previewTransitions,
+      routePlan: cloneRoute(route),
+      legsToTravel: legs.map((leg) => ({ ...leg })),
+      legIndex: startIndex,
+      stageNumber: startIndex + 1,
+      stageCount: route.legs.length,
+      remainingStageCount: legs.length,
+      routeLabel: routeProgressLabel(route, startIndex),
+      finalDestinationLabel: route.finalDestinationLabel,
+      totalTravelDays: route.totalTravelDays,
+      remainingTravelDays: remainingRouteDays(route, startIndex),
+      fullRoute: true
+    };
+  };
+
+  const queueTravelConfirmation = (request, id, marker, isContinuation = false) => {
+    clock.pending = request;
+    clock.active = {
+      id,
+      marker,
+      kind: "confirmation",
+      confirmationKind: "travel",
+      isContinuation,
+      originLabel: request.originLabel,
+      destinationLabel: request.destinationLabel,
+      travelDays: request.travelDays,
+      travelMode: request.travelMode,
+      originWasEstimated: request.originWasEstimated,
+      accessDays: request.accessDays,
+      hubLabel: request.hubLabel,
+      networkTravelDays: request.networkTravelDays,
+      beforeLabel: formatDate(request.beforeDay),
+      afterLabel: formatDate(request.afterDay),
+      transitions: request.previewTransitions,
+      stageNumber: request.stageNumber,
+      stageCount: request.stageCount,
+      remainingStageCount: request.remainingStageCount,
+      routeLabel: request.routeLabel,
+      finalDestinationLabel: request.finalDestinationLabel,
+      totalTravelDays: request.totalTravelDays,
+      remainingTravelDays: request.remainingTravelDays,
+      fullRoute: request.fullRoute,
+      completed: false
+    };
+  };
+
   const detectedTravelNode = currentTravelNode();
   if (detectedTravelNode && clock.location.travelNodeId !== detectedTravelNode.id) {
     clock.location = travelNodeLocation(detectedTravelNode, clock.location.detectedFrom || "initial detection");
@@ -508,7 +827,7 @@ function WorldCalendar(hook, inputText) {
         created = index >= 0;
       } catch (error) {
         if (typeof log === "function") {
-          log(`World Calendar: could not create Story Card '${title}': ${error.message}`);
+          log(`AI Dungeon World Calendar: could not create Story Card '${title}': ${error.message}`);
         }
       }
     }
@@ -516,7 +835,7 @@ function WorldCalendar(hook, inputText) {
     if (index < 0 || !storyCards[index]) {
       if (typeof log === "function" && clock.lastCardErrorAction !== safeActionCount()) {
         clock.lastCardErrorAction = safeActionCount();
-        log(`World Calendar: Story Card '${title}' is missing and could not be created.`);
+        log(`AI Dungeon World Calendar: Story Card '${title}' is missing and could not be created.`);
       }
       return { index: -1, created: false };
     }
@@ -539,6 +858,55 @@ function WorldCalendar(hook, inputText) {
     card.title = title;
     card.description = notes;
     return { index, created };
+  };
+
+  const readCalendarEnabled = () => {
+    const index = findCardIndex(CALENDAR_KEY, CALENDAR_MARKER);
+    if (index < 0 || !storyCards[index]) return true;
+    const description = String(storyCards[index].description || "");
+    const match = description.match(/^\s*Enabled\s*:\s*(true|false)\s*$/mi);
+    return !match || match[1].toLowerCase() !== "false";
+  };
+
+  const readAutoSkipLimit = () => {
+    const index = findCardIndex(CALENDAR_KEY, CALENDAR_MARKER);
+    if (index < 0 || !storyCards[index]) return clock.autoSkipLimitDays;
+    const description = String(storyCards[index].description || "");
+    const match = description.match(/^\s*Auto-Skip Limit\s*:\s*(\d+)\s*(?:days?)?\s*$/mi);
+    if (!match) return clock.autoSkipLimitDays;
+    const value = Number.parseInt(match[1], 10);
+    const maxDays = Math.max(1, (Number.isInteger(SETTINGS.MAX_SKIP_YEARS) ? SETTINGS.MAX_SKIP_YEARS : 1000) * 366);
+    if (!Number.isSafeInteger(value) || value < 0 || value > maxDays) return clock.autoSkipLimitDays;
+    clock.autoSkipLimitDays = value;
+    return value;
+  };
+
+  const readCompleteFullRouteImmediately = () => {
+    const index = findCardIndex(CALENDAR_KEY, CALENDAR_MARKER);
+    if (index < 0 || !storyCards[index]) return false;
+    const description = String(storyCards[index].description || "");
+    const match = description.match(/^\s*Complete Full Route Immediately\s*:\s*(true|false)\s*$/mi);
+    return Boolean(match && match[1].toLowerCase() === "true");
+  };
+
+  const deactivateCalendarCards = () => {
+    for (let index = 0; index < storyCards.length; index++) {
+      const card = storyCards[index];
+      if (!card || typeof card !== "object" || typeof card.keys !== "string") continue;
+      if (!card.keys.includes(CALENDAR_MARKER) && !/%WC_EVENT_[A-Za-z0-9_-]+%/.test(card.keys)) continue;
+      const inactiveKeys = card.keys
+        .split(",")
+        .map((key) => key.trim())
+        .filter((key) => key && key.toLowerCase() !== "you")
+        .join(",");
+      if (inactiveKeys === card.keys) continue;
+      if (typeof updateStoryCard === "function") {
+        try {
+          updateStoryCard(index, inactiveKeys, card.entry, card.type);
+        } catch {}
+      }
+      card.keys = inactiveKeys;
+    }
   };
 
   const removeCardByKeys = (keys, marker = null) => {
@@ -681,7 +1049,7 @@ function WorldCalendar(hook, inputText) {
       entry,
       type: "events",
       title: String(event.card.title || event.title || event.id),
-      notes: String(event.card.notes || "Managed automatically by World Calendar."),
+      notes: String(event.card.notes || "Managed automatically by AI Dungeon World Calendar."),
       marker
     });
     if (result.index < 0) return null;
@@ -729,14 +1097,18 @@ function WorldCalendar(hook, inputText) {
       ? Math.max(0, SETTINGS.MAX_RECENT_EVENTS)
       : 5;
     const recent = recentLimit > 0 ? clock.eventLog.slice(-recentLimit).reverse() : [];
+    const route = clock.activeRoute;
+    const nextLeg = route && route.legs[route.nextLegIndex];
     return [
-      "World Calendar",
       "=== EDITABLE STATE ===",
       `Date: ${formatDate(clock.absoluteDay)}`,
       `Location: ${clock.location.name}`,
       "=== END EDITABLE STATE ===",
       `Region: ${clock.location.state}, ${clock.location.continent}.`,
-      "The world uses twelve ordinary months. The date changes only through explicit time-skip commands.",
+      ...(route && nextLeg ? [
+        `Journey paused. Final destination: ${route.finalDestinationLabel}.`,
+        `Next stage: ${nextLeg.destinationLabel} (${nextLeg.travelDays} days).`
+      ] : []),
       "",
       "Current events:",
       active.length ? active.map((event) => `- ${eventDisplayName(event)}`).join("\n") : "- None.",
@@ -748,15 +1120,33 @@ function WorldCalendar(hook, inputText) {
     ].join("\n");
   };
 
-  const calendarNotes = () => [
+  const calendarNotes = (
+    enabled = true,
+    autoSkipLimit = readAutoSkipLimit(),
+    completeFullRouteImmediately = readCompleteFullRouteImmediately()
+  ) => [
+    "=== WORLD CALENDAR SETTINGS ===",
+    `Enabled: ${enabled ? "true" : "false"}`,
+    `Auto-Skip Limit: ${autoSkipLimit} days`,
+    `Complete Full Route Immediately: ${completeFullRouteImmediately ? "true" : "false"}`,
+    "=== END SETTINGS ===",
+    "Set Enabled to false to disable World Calendar, all WC commands, time progression, travel, event processing, and calendar context.",
+    "Set Enabled to true to turn World Calendar back on. Other scripts continue to work while WC is disabled.",
+    "Set Auto-Skip Limit to the largest number of days that should skip immediately without confirmation. The default is 7. :skip night always runs immediately.",
+    "Set Complete Full Route Immediately to true to finish every remaining travel stage after one confirmation. The default is false, so journeys pause at intermediate stops.",
+    "",
+    "Enter all World Calendar commands as Story actions, not Do or Say actions.",
+    "Do and Say may rewrite commands and cause valid commands to fail.",
+    "",
     "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
-    "Enter all World Calendar commands as Story actions, not Do actions. Do may rewrite the input and cause valid commands to fail.",
-    "AI Dungeon World Calendar v1.1.0",
+    "AI Dungeon World Calendar v1.1.1",
     clock.lastCardEditError ? `Last edit error: ${clock.lastCardEditError}` : "Editable state is valid.",
-    "Edit only the Date and Location lines at the top of the Entry.",
+    "Edit the Date or Location lines at the top of the Entry.",
     "Manual edits are administrative corrections and do not create a narrated time skip or journey.",
+    ...(TRAVEL_ENABLED ? [
+      "When a journey is paused, use :travel continue to resume it or :travel end to remain at the current stop."
+    ] : ["Travel is disabled until the scenario creator sets ENABLE_TRAVEL to true."]),
     "Add personal yearly or one-time events in the separate Custom Events card.",
-    `Travel system: ${TRAVEL_ENABLED ? "Enabled" : "Disabled"}.`,
     "",
     "Available commands:",
     ":skip <duration>",
@@ -768,11 +1158,20 @@ function WorldCalendar(hook, inputText) {
     ":skip 1 year",
     ":skip 1 year 2 months 3 days",
     ":skip night — advance to the next morning",
-    ...(TRAVEL_ENABLED ? [":travel Rivergate"] : []),
+    ...(TRAVEL_ENABLED ? [
+      ":travel Rivergate",
+      ":travel continue — preview and resume the next stage of a paused journey",
+      ":travel end — abandon the saved route and remain at the current stop"
+    ] : []),
+    ":yes — confirm a pending long skip or journey",
+    ":no — cancel a pending long skip or journey",
+    ":undo — undo the latest completed skip or journey within 3 actions",
     "",
     ":date — show the current date",
     ":where — show the current location",
-    ...(TRAVEL_ENABLED ? [":travel <destination> — travel to a configured destination"] : []),
+    ...(TRAVEL_ENABLED ? [
+      ":travel <destination> — travel through the configured route network"
+    ] : []),
     ":help — show command help",
     "",
     "Advanced correction command:",
@@ -783,12 +1182,13 @@ function WorldCalendar(hook, inputText) {
   ].join("\n");
 
   const updateCalendarCard = () => {
+    const enabled = readCalendarEnabled();
     const result = upsertCard({
       keys: CALENDAR_KEY,
       entry: calendarEntry(),
-      type: "calendar",
+      type: "class",
       title: String(SETTINGS.CALENDAR_CARD_TITLE || "World Calendar"),
-      notes: calendarNotes(),
+      notes: calendarNotes(enabled),
       marker: CALENDAR_MARKER
     });
     if (result.index >= 0) {
@@ -800,7 +1200,7 @@ function WorldCalendar(hook, inputText) {
 
   const parseEditableDate = (source) => {
     const value = String(source || "").trim();
-    const named = value.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d+)(?:\s+[A-Za-z][A-Za-z0-9.-]*)?$/i);
+    const named = value.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d+)(?:\s+[A-Za-z][A-Za-z0-9_-]*)?$/i);
     if (named) {
       const month = MONTHS.findIndex((name) => name.toLowerCase() === named[2].toLowerCase()) + 1;
       const date = { day: Number(named[1]), month, year: Number(named[3]) };
@@ -817,13 +1217,13 @@ function WorldCalendar(hook, inputText) {
   const customEventsTemplate = () => [
     "Custom Events",
     "=== CUSTOM EVENTS ===",
-    "# yearly | 12 May | A Character's Birthday | 1 day",
-    "# once | 18 June 1001 | Town Celebration | 3 days",
+    "# yearly | 12 May | Mira's Birthday | 1 day",
+    "# once | 18 June 4813 | Oakrest Celebration | 3 days",
     "=== END CUSTOM EVENTS ==="
   ].join("\n");
 
   const customEventsNotes = () => [
-    "World Calendar Custom Events v1",
+    "AI Dungeon World Calendar Custom Events v1",
     "Add one event per line inside the editable block.",
     "Formats:",
     "yearly | DAY MONTH | TITLE | N days",
@@ -914,7 +1314,7 @@ function WorldCalendar(hook, inputText) {
     }
 
     const date = parseEditableDate(parts[1]);
-    if (!date) return { error: `Line ${lineNumber}: one-time dates use '18 June 1001'.` };
+    if (!date) return { error: `Line ${lineNumber}: one-time dates use '18 June 4813'.` };
     return {
       event: {
         id,
@@ -976,6 +1376,7 @@ function WorldCalendar(hook, inputText) {
     clock.customEventsSignature = signature;
     clock.journal = [];
     clock.active = null;
+    clock.pending = null;
     return { changed: true };
   };
 
@@ -1010,7 +1411,8 @@ function WorldCalendar(hook, inputText) {
       return { dateChanged: false, locationChanged: false };
     }
     const entry = storyCards[index].entry;
-    if (!entry.includes("=== EDITABLE STATE ===")) {
+    const hasEditableState = entry.includes("[EDITABLE]") || entry.includes("=== EDITABLE STATE ===");
+    if (!hasEditableState) {
       return { dateChanged: false, locationChanged: false };
     }
     const dateLine = entry.match(/^Date:\s*(.+?)\s*$/mi);
@@ -1056,17 +1458,8 @@ function WorldCalendar(hook, inputText) {
     } else if (locationWasEdited) {
       const requestedLocation = locationText;
       if (requestedLocation.toLowerCase() !== clock.location.name.toLowerCase()) {
-        const resolved = resolveLocation(requestedLocation, "calendar card") || (
-          !TRAVEL_ENABLED && requestedLocation
-            ? {
-                ...clock.location,
-                id: locationId(requestedLocation, clock.location.state),
-                name: requestedLocation,
-                status: "stationary",
-                detectedFrom: "calendar card"
-              }
-            : null
-        );
+        const resolved = resolveLocation(requestedLocation, "calendar card") ||
+          (!TRAVEL_ENABLED ? freeTextLocation(requestedLocation, "calendar card") : null);
         if (!resolved) {
           errors.push(`Unknown location '${requestedLocation}'. Include a known region or continent.`);
         } else if (clock.location.id !== resolved.id) {
@@ -1080,6 +1473,8 @@ function WorldCalendar(hook, inputText) {
     if (dateChanged || locationChanged) {
       clock.journal = [];
       clock.active = null;
+      clock.pending = null;
+      if (locationChanged) clock.activeRoute = null;
     }
     return { dateChanged, locationChanged };
   };
@@ -1087,6 +1482,9 @@ function WorldCalendar(hook, inputText) {
   const rollbackTransaction = (transaction) => {
     clock.absoluteDay = transaction.beforeDay;
     if (transaction.beforeLocation) clock.location = { ...transaction.beforeLocation };
+    if (Object.prototype.hasOwnProperty.call(transaction, "beforeActiveRoute")) {
+      clock.activeRoute = cloneRoute(transaction.beforeActiveRoute);
+    }
     const newIds = new Set(transaction.newEventIds || []);
     const newlyEnded = new Set(transaction.endedEventIds || []);
     clock.firedEvents = clock.firedEvents.filter((id) => !newIds.has(id));
@@ -1099,6 +1497,17 @@ function WorldCalendar(hook, inputText) {
     for (const change of [...(transaction.cardChanges || [])].reverse()) restoreCardChange(change);
     for (const keys of (transaction.addedCardKeys || [])) removeCardByKeys(keys);
     if (clock.active && clock.active.id === transaction.id) clock.active = null;
+  };
+
+  const latestUndoableTransaction = () => {
+    for (let index = clock.journal.length - 1; index >= 0; index--) {
+      const transaction = clock.journal[index];
+      if (!transaction || transaction.undoEligible !== true) continue;
+      if (!Number.isInteger(transaction.commitTurnSerial)) return null;
+      const elapsed = Math.max(0, clock.inputTurnSerial - transaction.commitTurnSerial);
+      return elapsed <= UNDO_WINDOW_ACTIONS ? transaction : null;
+    }
+    return null;
   };
 
   const reconcileJournal = () => {
@@ -1145,7 +1554,7 @@ function WorldCalendar(hook, inputText) {
     candidate = candidate.replace(/^>\s*you\b/i, "").trim();
     candidate = candidate.replace(/^(?:say|try\s+to|attempt\s+to|do)\s+/i, "").trim();
     candidate = candidate.replace(/^["'“”]+/, "").replace(/["'“”]+[.!?]?$/, "").trim();
-    const match = candidate.match(/^[:/](date|calendar|time|help|skip|travel|where|location|setlocation)\b([\s\S]*)$/i);
+    const match = candidate.match(/^[:/](date|calendar|time|help|skip|travel|where|location|setlocation|yes|no|undo)\b([\s\S]*)$/i);
     return match ? { name: match[1].toLowerCase(), args: match[2].trim() } : null;
   };
 
@@ -1344,6 +1753,89 @@ function WorldCalendar(hook, inputText) {
     };
   };
 
+  const previewCalendarTransitions = (beforeDay, afterDay, destinationState = clock.location.state) => {
+    const fired = new Set(clock.firedEvents);
+    const ended = new Set(clock.endedEvents);
+    const transitions = [];
+
+    for (const event of allEvents()) {
+      let becomesFired = fired.has(event.id);
+      if (beforeDay < event.ordinal && event.ordinal <= afterDay && !becomesFired) {
+        becomesFired = true;
+        transitions.push({
+          id: event.id,
+          kind: "started",
+          title: event.title || event.id,
+          ordinal: event.ordinal,
+          endOrdinal: event.endOrdinal,
+          region: event.region || "Worldwide",
+          prompt: event.prompt || "This event begins during the time skip."
+        });
+      }
+      const endBoundary = Number.isInteger(event.endOrdinal) ? event.endOrdinal + 1 : null;
+      if (
+        endBoundary != null && becomesFired && !ended.has(event.id) &&
+        beforeDay < endBoundary && endBoundary <= afterDay
+      ) {
+        transitions.push({
+          id: event.id,
+          kind: "ended",
+          title: event.title || event.id,
+          ordinal: event.endOrdinal,
+          region: event.region || "Worldwide",
+          prompt: event.endPrompt || `${event.title || event.id} concludes during the time skip.`
+        });
+      }
+    }
+
+    const beforeYear = ordinalToDate(beforeDay).year;
+    const afterYear = ordinalToDate(afterDay).year;
+    const festivals = allFestivals().filter((festival) => (
+      festival.regions.includes("*") || festival.regions.includes(destinationState)
+    ));
+    for (const festival of festivals) {
+      const occurrences = [];
+      for (let year = Math.max(1, beforeYear - 1); year <= afterYear; year++) {
+        const occurrence = festivalOccurrence(festival, year);
+        if (!occurrence) continue;
+        const started = beforeDay < occurrence.startOrdinal && occurrence.startOrdinal <= afterDay;
+        const endedNow = beforeDay < occurrence.endBoundary && occurrence.endBoundary <= afterDay;
+        if (started || endedNow) occurrences.push({ ...occurrence, started, ended: endedNow });
+      }
+      if (!occurrences.length) continue;
+      const region = festival.regions.includes("*") ? "Worldwide" : festival.regions.join(" and ");
+      if (occurrences.length <= 6) {
+        for (const occurrence of occurrences) {
+          const kind = occurrence.started && occurrence.ended
+            ? "occurred"
+            : occurrence.started ? "started" : "ended";
+          transitions.push({
+            id: festival.id,
+            kind,
+            title: festival.title || festival.id,
+            ordinal: kind === "ended" ? occurrence.endOrdinal : occurrence.startOrdinal,
+            endOrdinal: occurrence.endOrdinal,
+            region,
+            prompt: festival.prompt || "A recurring festival is observed during the time skip."
+          });
+        }
+      } else {
+        transitions.push({
+          id: festival.id,
+          kind: "recurred",
+          title: festival.title || festival.id,
+          ordinal: occurrences[occurrences.length - 1].startOrdinal,
+          endOrdinal: occurrences[occurrences.length - 1].endOrdinal,
+          region,
+          count: occurrences.filter((occurrence) => occurrence.started).length,
+          prompt: festival.prompt || "A recurring festival is observed repeatedly during the time skip."
+        });
+      }
+    }
+
+    return transitions.sort((a, b) => a.ordinal - b.ordinal);
+  };
+
   const synchronizeConcludedEvents = () => {
     const fired = new Set(clock.firedEvents);
     const ended = new Set(clock.endedEvents);
@@ -1436,19 +1928,34 @@ function WorldCalendar(hook, inputText) {
     ].join("\n");
   };
 
-  const locationStatusText = () => [
-    ">>> Current Location",
-    locationLabel(),
-    `Status: ${clock.location.status || "stationary"}`
-  ].join("\n");
+  const locationStatusText = () => {
+    const route = clock.activeRoute;
+    const nextLeg = route && route.legs[route.nextLegIndex];
+    return [
+      ">>> Current Location",
+      locationLabel(),
+      `Status: ${clock.location.status || "stationary"}`,
+      ...(route && nextLeg ? [
+        `Paused journey: ${routeProgressLabel(route)}`,
+        `Remaining travel time: ${remainingRouteDays(route)} days`,
+        `Next stage: ${nextLeg.destinationLabel} (${nextLeg.travelDays} days)`
+      ] : [])
+    ].join("\n");
+  };
 
   const helpText = () => [
     ">>> World Calendar Commands",
     "",
-    "IMPORTANT: Enter all World Calendar commands as Story actions, not Do actions.",
-    "Do may rewrite the input and cause valid commands to fail.",
+    "IMPORTANT: Enter World Calendar commands as Story actions, not Do or Say actions.",
+    "Do and Say may rewrite commands and cause valid commands to fail.",
     "",
     "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
+    "",
+    "Enable or disable World Calendar:",
+    "Open the World Calendar Story Card and edit its Description setting.",
+    "Enabled: true — World Calendar is active.",
+    "Enabled: false — disable all WC commands, time progression, travel, events, and calendar context.",
+    "Other scripts continue to work while WC is disabled.",
     "",
     "Time skip:",
     "Use one universal command: :skip <duration>",
@@ -1459,24 +1966,36 @@ function WorldCalendar(hook, inputText) {
     ":skip 3 months",
     ":skip 1 year 2 months 3 days",
     ":skip night — advance to the next morning",
+    `Skips of ${readAutoSkipLimit()} days or fewer run immediately. Edit Auto-Skip Limit in the World Calendar Story Card to change this.`,
+    "Longer skips show their dates and calendar events first. Use :yes to continue or :no to cancel.",
     "",
     ...(TRAVEL_ENABLED ? [
       "Travel:",
-      ":travel <destination> — travel to a configured destination and advance time by the journey duration",
+      ":travel <destination> — plan a route to a configured destination",
       "Example: :travel Rivergate",
-      "Available destinations are the major cities and locations configured by the scenario creator.",
-      "A precise starting city is not required when the current region or continent is known.",
-      "If the starting point is unknown, custom, or too specific, travel can include an estimated leg to the nearest configured hub.",
-      ":setlocation <destination> — correct the current location when the calendar does not know it.",
-      "The value may be a configured destination or a custom place whose region or continent is known.",
+      "Long routes are divided into stages and pause at every intermediate stop.",
+      ":travel continue — preview the next stage of the saved route",
+      ":travel end — end the saved route and remain at the current stop",
+      "Set Complete Full Route Immediately to true in the World Calendar Story Card to complete every remaining stage after one confirmation.",
+      "Its default is false, so travel remains staged.",
+      "Every stage shows its duration, arrival date, mode, and calendar events before departure. Use :yes or :no.",
+      "Available destinations are configured by the scenario creator.",
+      "A precise starting destination is not required when the current region or continent is known.",
+      "For a custom starting point, travel time includes an estimated journey to the region's nearest hub, then the configured route.",
+      "Use :setlocation <place, region or continent> when the calendar does not know where the character is.",
       "Example: :setlocation Old Ruins, Western Lands",
       ""
     ] : [
-      "Travel is disabled in this scenario.",
+      "Travel is disabled in this scenario. The scenario creator can enable it in WorldCalendarSettings.",
+      "Use :setlocation <destination> to correct the current location manually.",
       ""
     ]),
+    "",
     ":date — show the current date",
     ":where — show the current location",
+    ":undo — undo the latest completed skip or journey within the next 3 actions",
+    ":yes — confirm the pending skip or journey",
+    ":no — cancel the pending skip or journey",
     ":help — show this help",
     "Normal actions do not advance time."
   ].join("\n");
@@ -1507,6 +2026,18 @@ function WorldCalendar(hook, inputText) {
     ];
     const active = currentEvents();
     if (active.length) lines.push(`Current world events: ${active.map(eventDisplayName).join("; ")}.`);
+    if (clock.activeRoute) {
+      const route = clock.activeRoute;
+      const nextLeg = route.legs[route.nextLegIndex];
+      if (nextLeg) {
+        lines.push(
+          `A staged journey is paused at the current location. Final destination: ${route.finalDestinationLabel}.`,
+          `The next planned stop is ${nextLeg.destinationLabel}, ${nextLeg.travelDays} travel days away.`,
+          `The next stage uses ${nextLeg.travelMode || "land"} travel.`,
+          "Do not move the character onward automatically. Travel resumes only when the player uses :travel continue and confirms it."
+        );
+      }
+    }
 
     if (clock.active && ["skip", "travel"].includes(clock.active.kind)) {
       if (clock.active.kind === "skip") {
@@ -1525,16 +2056,30 @@ function WorldCalendar(hook, inputText) {
             "Briefly establish what changed during the elapsed time, then continue from the character's present situation."
           );
         }
+      } else if (clock.active.fullRoute) {
+        lines.push(
+          `The player completed the full staged journey from ${clock.active.originLabel} to ${clock.active.destinationLabel}.`,
+          `Travel time: ${clock.active.travelDays} days across ${clock.active.remainingStageCount} stages, from ${clock.active.beforeLabel} to ${clock.active.afterLabel}.`,
+          `Travel modes used: ${clock.active.travelMode || "land"}.`,
+          "Write a concise journey transition, acknowledge the substantial passage of time, and resume the story at the final destination."
+        );
       } else {
         lines.push(
-          `The player travelled from ${clock.active.originLabel} to ${clock.active.destinationLabel}.`,
+          `The player completed travel stage ${clock.active.stageNumber} of ${clock.active.stageCount}, from ${clock.active.originLabel} to ${clock.active.destinationLabel}.`,
           `Travel time: ${clock.active.travelDays} days, from ${clock.active.beforeLabel} to ${clock.active.afterLabel}.`,
-          "Write a concise journey transition, acknowledge the passage of time, and resume the story after arrival at the destination."
+          `Travel mode: ${clock.active.travelMode || "land"}.`,
+          "Write a concise journey transition, acknowledge the passage of time, and resume the story after arrival at this stop."
         );
+        if (clock.active.routeRemaining) {
+          lines.push(
+            `The wider route continues toward ${clock.active.finalDestinationLabel}, but it is now paused at ${clock.active.destinationLabel}.`,
+            "Do not continue to the next stop in this generation. The player may remain here indefinitely."
+          );
+        }
         if (clock.active.originWasEstimated) {
           lines.push(
-            `The starting point was not a configured city, so the journey estimate includes ${clock.active.accessDays} ${clock.active.accessDays === 1 ? "day" : "days"} to reach ${clock.active.hubLabel}, followed by ${clock.active.networkTravelDays} ${clock.active.networkTravelDays === 1 ? "day" : "days"} on the configured route.`,
-            "Treat both legs as one continuous journey; do not claim the character began in the hub city."
+            `The starting point was not a configured city, so this stage estimates ${clock.active.accessDays} days to reach ${clock.active.hubLabel}.`,
+            "Do not claim the character began in the hub city; this stage starts at their previously recorded custom location."
           );
         }
       }
@@ -1588,6 +2133,149 @@ function WorldCalendar(hook, inputText) {
     return persistent ? `${persistent}\n\n${freshRecentStory}` : freshRecentStory;
   };
 
+  const rememberTransaction = (transaction) => {
+    clock.journal.push({ ...transaction, undoEligible: true });
+    if (clock.journal.length > 50) clock.journal.splice(0, clock.journal.length - 50);
+  };
+
+  const executeSkipRequest = (request, id, marker) => {
+    const beforeDay = clock.absoluteDay;
+    const afterDay = addDuration(beforeDay, request.values);
+    const eventLogLengthBefore = clock.eventLog.length;
+    const processed = processCalendarTransitions(beforeDay, afterDay);
+    clock.absoluteDay = afterDay;
+    rememberTransaction({
+      id,
+      marker,
+      kind: "skip",
+      beforeDay,
+      afterDay,
+      newEventIds: processed.newEventIds,
+      endedEventIds: processed.endedEventIds,
+      cardChanges: processed.cardChanges,
+      eventLogLengthBefore,
+      commitActionCount: null
+    });
+    clock.active = {
+      id,
+      marker,
+      kind: "skip",
+      skipStyle: request.isNightSkip ? "night" : "duration",
+      durationLabel: request.durationLabel,
+      beforeLabel: formatDate(beforeDay),
+      afterLabel: formatDate(afterDay),
+      transitions: processed.transitions,
+      completed: false
+    };
+    return request.isNightSkip
+      ? `\n> The night passes. The story resumes on the morning of ${formatDate(afterDay)}.${marker}`
+      : `\n> ${request.durationLabel} passes. The story resumes on ${formatDate(afterDay)}.${marker}`;
+  };
+
+  const executeTravelRequest = (request, id, marker) => {
+    const beforeDay = clock.absoluteDay;
+    const beforeLocation = { ...clock.location };
+    const beforeActiveRoute = cloneRoute(clock.activeRoute);
+    const eventLogLengthBefore = clock.eventLog.length;
+    let afterDay = beforeDay;
+    let processed;
+    let routeRemaining = false;
+
+    if (request.fullRoute) {
+      const combined = {
+        transitions: [],
+        newEventIds: [],
+        endedEventIds: [],
+        cardChanges: []
+      };
+      for (const leg of request.legsToTravel) {
+        const destination = travelNodeById(leg.toNodeId);
+        if (!destination) throw new Error(`Unknown travel node '${leg.toNodeId}'.`);
+        const stageEnd = afterDay + leg.travelDays;
+        clock.location = travelNodeLocation(destination, "travel command");
+        const stage = processCalendarTransitions(afterDay, stageEnd);
+        combined.transitions.push(...stage.transitions);
+        combined.newEventIds.push(...stage.newEventIds);
+        combined.endedEventIds.push(...stage.endedEventIds);
+        combined.cardChanges.push(...stage.cardChanges);
+        afterDay = stageEnd;
+      }
+      clock.absoluteDay = afterDay;
+      clock.activeRoute = null;
+      processed = combined;
+    } else {
+      afterDay = beforeDay + request.travelDays;
+      clock.location = { ...request.afterLocation };
+      processed = processCalendarTransitions(beforeDay, afterDay);
+      clock.absoluteDay = afterDay;
+      const routeAfter = cloneRoute(request.routePlan);
+      routeAfter.nextLegIndex = request.legIndex + 1;
+      routeAfter.status = "paused";
+      routeRemaining = routeAfter.nextLegIndex < routeAfter.legs.length;
+      clock.activeRoute = routeRemaining ? routeAfter : null;
+    }
+    rememberTransaction({
+      id,
+      marker,
+      kind: "travel",
+      beforeDay,
+      afterDay,
+      beforeLocation,
+      afterLocation: { ...request.afterLocation },
+      beforeActiveRoute,
+      afterActiveRoute: cloneRoute(clock.activeRoute),
+      newEventIds: processed.newEventIds,
+      endedEventIds: processed.endedEventIds,
+      cardChanges: processed.cardChanges,
+      eventLogLengthBefore,
+      commitActionCount: null
+    });
+    clock.active = {
+      id,
+      marker,
+      kind: "travel",
+      originLabel: request.originLabel,
+      destinationLabel: request.destinationLabel,
+      travelDays: request.travelDays,
+      travelMode: request.travelMode,
+      originWasEstimated: request.originWasEstimated,
+      accessDays: request.accessDays,
+      hubLabel: request.hubLabel,
+      networkTravelDays: request.networkTravelDays,
+      stageNumber: request.stageNumber,
+      stageCount: request.stageCount,
+      remainingStageCount: request.remainingStageCount,
+      routeLabel: request.routeLabel,
+      finalDestinationLabel: request.finalDestinationLabel,
+      routeRemaining,
+      fullRoute: request.fullRoute,
+      beforeLabel: formatDate(beforeDay),
+      afterLabel: formatDate(afterDay),
+      transitions: processed.transitions,
+      completed: false
+    };
+    if (request.fullRoute) {
+      return `\n> You complete the full journey from ${request.originName} to ${request.destinationName}. The remaining route takes ${request.travelDays} days, and you arrive on ${formatDate(afterDay)}.${marker}`;
+    }
+    return `\n> You travel from ${request.originName} to ${request.destinationName}. This stage takes ${request.travelDays} days, and you arrive on ${formatDate(afterDay)}.${marker}`;
+  };
+
+  const previewTransitionNotice = (transition) => {
+    const name = eventDisplayName(transition);
+    if (transition.kind === "started") return `${formatDate(transition.ordinal)}: ${name} begins.`;
+    if (transition.kind === "ended") return `${formatDate(transition.ordinal)}: ${name} ends.`;
+    if (transition.kind === "occurred") return `${formatDate(transition.ordinal)}: ${name} takes place and concludes.`;
+    if (transition.kind === "recurred") return `${name} occurs ${transition.count || "multiple"} times.`;
+    return `${formatDate(transition.ordinal)}: ${name} occurs.`;
+  };
+
+  if (!readCalendarEnabled()) {
+    clock.active = null;
+    clock.pending = null;
+    deactivateCalendarCards();
+    return text || ZERO_WIDTH_SPACE;
+  }
+
   ensureCustomEventsCard();
   const manualOverride = ["input", "context"].includes(hook)
     ? readCalendarOverrides()
@@ -1605,12 +2293,78 @@ function WorldCalendar(hook, inputText) {
     settlePreviousActiveCommand();
     const command = unwrapCommand(text);
     if (!command) {
+      clock.pending = null;
       updateCalendarCard();
       return text || ZERO_WIDTH_SPACE;
     }
 
     const id = clock.nextTransactionId++;
     const marker = makeMarker(id);
+
+    if (command.name === "yes") {
+      const pending = clock.pending;
+      clock.pending = null;
+      if (!pending) {
+        clock.active = { id, marker, kind: "error", message: "There is no pending skip or journey to confirm.", completed: false };
+        updateCalendarCard();
+        return marker;
+      }
+      const sameDate = pending.beforeDay === clock.absoluteDay;
+      const sameLocation = !pending.beforeLocationId || pending.beforeLocationId === clock.location.id;
+      if (!sameDate || !sameLocation) {
+        clock.active = { id, marker, kind: "error", message: "The calendar state changed, so the pending action was cancelled. Enter the original command again.", completed: false };
+        updateCalendarCard();
+        return marker;
+      }
+      const result = pending.kind === "travel"
+        ? executeTravelRequest(pending, id, marker)
+        : executeSkipRequest(pending, id, marker);
+      updateCalendarCard();
+      return result;
+    }
+
+    if (command.name === "no") {
+      const hadPending = Boolean(clock.pending);
+      clock.pending = null;
+      clock.active = {
+        id,
+        marker,
+        kind: hadPending ? "cancelled" : "error",
+        message: hadPending ? "The pending skip or journey was cancelled." : "There is no pending skip or journey to cancel.",
+        completed: false
+      };
+      updateCalendarCard();
+      return marker;
+    }
+
+    // Any command other than :yes or :no cancels a stale confirmation.
+    clock.pending = null;
+
+    if (command.name === "undo") {
+      const transaction = latestUndoableTransaction();
+      if (!transaction) {
+        clock.active = { id, marker, kind: "undoUnavailable", completed: false };
+        updateCalendarCard();
+        return marker;
+      }
+      const fromDate = formatDate(clock.absoluteDay);
+      const fromLocation = locationLabel();
+      rollbackTransaction(transaction);
+      clock.journal = clock.journal.filter((item) => item.id !== transaction.id);
+      clock.active = {
+        id,
+        marker,
+        kind: "undo",
+        undoneKind: transaction.kind,
+        fromDate,
+        toDate: formatDate(clock.absoluteDay),
+        fromLocation,
+        toLocation: locationLabel(),
+        completed: false
+      };
+      updateCalendarCard();
+      return marker;
+    }
 
     if (command.name === "date" || command.name === "calendar") {
       clock.active = {
@@ -1630,17 +2384,8 @@ function WorldCalendar(hook, inputText) {
     }
 
     if (command.name === "setlocation" || (command.name === "location" && command.args !== "")) {
-      const resolved = resolveLocation(command.args, "manual command") || (
-        !TRAVEL_ENABLED && command.args
-          ? {
-              ...clock.location,
-              id: locationId(command.args, clock.location.state),
-              name: command.args,
-              status: "stationary",
-              detectedFrom: "manual command"
-            }
-          : null
-      );
+      const resolved = resolveLocation(command.args, "manual command") ||
+        (!TRAVEL_ENABLED ? freeTextLocation(command.args, "manual command") : null);
       if (!resolved) {
         clock.active = {
           id,
@@ -1651,6 +2396,7 @@ function WorldCalendar(hook, inputText) {
         };
       } else {
         clock.location = resolved;
+        clock.activeRoute = null;
         clock.active = { id, marker, kind: "locationSet", completed: false };
       }
       updateCalendarCard();
@@ -1681,6 +2427,79 @@ function WorldCalendar(hook, inputText) {
         updateCalendarCard();
         return marker;
       }
+      const travelAction = command.args.trim().toLowerCase();
+
+      if (["end", "cancel"].includes(travelAction)) {
+        if (!clock.activeRoute) {
+          clock.active = {
+            id,
+            marker,
+            kind: "error",
+            message: "There is no paused journey to end.",
+            completed: false
+          };
+        } else {
+          const endedDestinationLabel = clock.activeRoute.finalDestinationLabel;
+          clock.activeRoute = null;
+          clock.active = {
+            id,
+            marker,
+            kind: "routeEnded",
+            endedDestinationLabel,
+            completed: false
+          };
+        }
+        updateCalendarCard();
+        return marker;
+      }
+
+      if (travelAction === "continue") {
+        const route = cloneRoute(clock.activeRoute);
+        if (!route) {
+          clock.active = {
+            id,
+            marker,
+            kind: "error",
+            message: "There is no paused journey to continue.",
+            completed: false
+          };
+          updateCalendarCard();
+          return marker;
+        }
+        const leg = route.legs[route.nextLegIndex];
+        const currentNode = currentTravelNode();
+        if (!leg || !currentNode || currentNode.id !== leg.fromNodeId) {
+          clock.active = {
+            id,
+            marker,
+            kind: "error",
+            message: "The current location no longer matches the saved route. Use :travel end, then plan a new journey.",
+            completed: false
+          };
+          updateCalendarCard();
+          return marker;
+        }
+        const completeFullRoute = readCompleteFullRouteImmediately() &&
+          (route.legs.length - route.nextLegIndex > 1);
+        const request = completeFullRoute
+          ? travelRequestForRemainingRoute(route, route.nextLegIndex)
+          : travelRequestForLeg(route, route.nextLegIndex);
+        if (!request) {
+          clock.active = {
+            id,
+            marker,
+            kind: "error",
+            message: "The next travel stage could not be calculated. End the route and plan it again.",
+            completed: false
+          };
+          updateCalendarCard();
+          return marker;
+        }
+        queueTravelConfirmation(request, id, marker, true);
+        updateCalendarCard();
+        return marker;
+      }
+
       const destinationText = command.args.replace(/^to\s+/i, "").trim();
       const destination = resolveTravelNode(destinationText);
       const exactOrigin = currentTravelNode();
@@ -1719,65 +2538,25 @@ function WorldCalendar(hook, inputText) {
         updateCalendarCard();
         return marker;
       }
-      const networkTravelDays = getTravelDays(origin, destination);
-      if (!Number.isInteger(networkTravelDays)) {
+      const route = buildTravelRoute(origin, originEstimate, destination, id);
+      if (!route) {
         clock.active = {
           id,
           marker,
           kind: "error",
-          message: `No travel time is configured between ${origin.name} and ${destination.name}.`,
+          message: `No staged route is configured between ${origin.name} and ${destination.name}.`,
           completed: false
         };
         updateCalendarCard();
         return marker;
       }
-      const accessDays = originEstimate ? originEstimate.accessDays : 0;
-      const travelDays = networkTravelDays + accessDays;
-
-      const beforeDay = clock.absoluteDay;
-      const afterDay = beforeDay + travelDays;
-      const beforeLocation = { ...clock.location };
-      const originLabel = originEstimate ? locationLabel() : `${origin.name}, ${origin.state}`;
-      const afterLocation = travelNodeLocation(destination, "travel command");
-      const eventLogLengthBefore = clock.eventLog.length;
-      // Regional transitions crossed during travel belong to the destination.
-      clock.location = afterLocation;
-      const processed = processCalendarTransitions(beforeDay, afterDay);
-      clock.absoluteDay = afterDay;
-      const transaction = {
-        id,
-        marker,
-        beforeDay,
-        afterDay,
-        beforeLocation,
-        afterLocation: { ...afterLocation },
-        newEventIds: processed.newEventIds,
-        endedEventIds: processed.endedEventIds,
-        cardChanges: processed.cardChanges,
-        eventLogLengthBefore,
-        commitActionCount: null
-      };
-      clock.journal.push(transaction);
-      if (clock.journal.length > 50) clock.journal.splice(0, clock.journal.length - 50);
-      clock.active = {
-        id,
-        marker,
-        kind: "travel",
-        originLabel,
-        destinationLabel: `${destination.name}, ${destination.state}`,
-        travelDays,
-        originWasEstimated: Boolean(originEstimate),
-        accessDays,
-        hubLabel: `${origin.name}, ${origin.state}`,
-        networkTravelDays,
-        beforeLabel: formatDate(beforeDay),
-        afterLabel: formatDate(afterDay),
-        transitions: processed.transitions,
-        completed: false
-      };
+      const completeFullRoute = readCompleteFullRouteImmediately() && route.legs.length > 1;
+      const request = completeFullRoute
+        ? travelRequestForRemainingRoute(route, 0)
+        : travelRequestForLeg(route, 0);
+      queueTravelConfirmation(request, id, marker, false);
       updateCalendarCard();
-      const originName = originEstimate ? originLabel : origin.name;
-      return `\n> You travel from ${originName} to ${destination.name}. The journey takes ${travelDays} days, and you arrive on ${formatDate(afterDay)}.${marker}`;
+      return marker;
     }
 
     const isNightSkip = command.name === "skip" && /^(?:the\s+)?night$/i.test(command.args);
@@ -1826,39 +2605,39 @@ function WorldCalendar(hook, inputText) {
       return marker;
     }
 
-    const eventLogLengthBefore = clock.eventLog.length;
-    const processed = processCalendarTransitions(beforeDay, afterDay);
-    clock.absoluteDay = afterDay;
-    const transaction = {
-      id,
-      marker,
+    const durationLabel = isNightSkip ? "one night" : describeDuration(parsed.values);
+    const request = {
+      kind: "skip",
       beforeDay,
       afterDay,
-      newEventIds: processed.newEventIds,
-      endedEventIds: processed.endedEventIds,
-      cardChanges: processed.cardChanges,
-      eventLogLengthBefore,
-      commitActionCount: null
+      beforeLocationId: clock.location.id,
+      values: { ...parsed.values },
+      durationLabel,
+      isNightSkip,
+      previewTransitions: previewCalendarTransitions(beforeDay, afterDay)
     };
-    clock.journal.push(transaction);
-    if (clock.journal.length > 50) clock.journal.splice(0, clock.journal.length - 50);
+    const elapsedDays = afterDay - beforeDay;
+    if (isNightSkip || elapsedDays <= readAutoSkipLimit()) {
+      const result = executeSkipRequest(request, id, marker);
+      updateCalendarCard();
+      return result;
+    }
 
-    const durationLabel = isNightSkip ? "one night" : describeDuration(parsed.values);
+    clock.pending = request;
     clock.active = {
       id,
       marker,
-      kind: "skip",
-      skipStyle: isNightSkip ? "night" : "duration",
+      kind: "confirmation",
+      confirmationKind: "skip",
       durationLabel,
       beforeLabel: formatDate(beforeDay),
       afterLabel: formatDate(afterDay),
-      transitions: processed.transitions,
+      elapsedDays,
+      transitions: request.previewTransitions,
       completed: false
     };
     updateCalendarCard();
-    return isNightSkip
-      ? `\n> The night passes. The story resumes on the morning of ${formatDate(afterDay)}.${marker}`
-      : `\n> ${durationLabel} passes. The story resumes on ${formatDate(afterDay)}.${marker}`;
+    return marker;
   }
 
   if (hook === "context") {
@@ -1885,6 +2664,86 @@ function WorldCalendar(hook, inputText) {
         output = helpText();
       } else if (active.kind === "error") {
         output = `>>> Calendar Command Error\n${active.message}\nType :help for examples.`;
+      } else if (active.kind === "cancelled") {
+        output = `>>> Calendar Action Cancelled\n${active.message}`;
+      } else if (active.kind === "routeEnded") {
+        output = [
+          ">>> Journey Ended",
+          `The saved route to ${active.endedDestinationLabel} was removed.`,
+          `The character remains in ${locationLabel()}.`
+        ].join("\n");
+      } else if (active.kind === "undoUnavailable") {
+        output = ">>> Undo\nNothing to undo.";
+      } else if (active.kind === "undo") {
+        const locationLine = active.fromLocation === active.toLocation
+          ? `Location remains: ${active.toLocation}`
+          : `Location restored: ${active.fromLocation} → ${active.toLocation}`;
+        output = [
+          ">>> Undo Complete",
+          `${active.undoneKind === "travel" ? "Journey" : "Time skip"} reverted.`,
+          `Date restored: ${active.fromDate} → ${active.toDate}`,
+          locationLine
+        ].join("\n");
+      } else if (active.kind === "confirmation") {
+        const eventLines = active.transitions.length
+          ? active.transitions.slice(0, 12).map((event) => `- ${previewTransitionNotice(event)}`)
+          : ["- None."];
+        if (active.transitions.length > 12) {
+          eventLines.push(`- ${active.transitions.length - 12} additional calendar transitions.`);
+        }
+        if (active.confirmationKind === "travel") {
+          const estimate = active.originWasEstimated
+            ? `This first stage is an estimated ${active.accessDays}-day journey to ${active.hubLabel}.`
+            : null;
+          const routeLines = [
+            active.fullRoute
+              ? ">>> Confirm Full Journey"
+              : active.isContinuation ? ">>> Resume Journey" : ">>> Confirm Journey",
+            `Full route: ${active.routeLabel}`,
+            `Stages: ${active.stageCount}`,
+            `Remaining planned travel time: ${active.remainingTravelDays} days`,
+            ""
+          ];
+          if (active.fullRoute) {
+            routeLines.push(
+              `Complete remaining stages: ${active.originLabel} → ${active.destinationLabel}`,
+              `Stages to complete: ${active.remainingStageCount}`,
+              `Travel time: ${active.travelDays} days`,
+              `Travel modes: ${active.travelMode || "land"}`,
+              `Arrival date: ${active.afterLabel}`,
+              estimate,
+              "",
+              "Calendar events during the remaining journey:"
+            );
+          } else {
+            routeLines.push(
+              `Next stage (${active.stageNumber}/${active.stageCount}): ${active.originLabel} → ${active.destinationLabel}`,
+              `Stage travel time: ${active.travelDays} days`,
+              `Travel mode: ${active.travelMode || "land"}`,
+              `Arrival date: ${active.afterLabel}`,
+              estimate,
+              "",
+              "Calendar events during this stage:"
+            );
+          }
+          output = [
+            ...routeLines,
+            ...eventLines,
+            "",
+            "Continue? (:yes/:no)"
+          ].filter((line) => line !== null).join("\n");
+        } else {
+          output = [
+            ">>> Confirm Time Skip",
+            `Duration: ${active.durationLabel} (${active.elapsedDays} days)`,
+            `${active.beforeLabel} → ${active.afterLabel}`,
+            "",
+            "Calendar events during this period:",
+            ...eventLines,
+            "",
+            "Continue? (:yes/:no)"
+          ].join("\n");
+        }
       } else if (active.kind === "skip") {
         const body = text.replace(/[\u200B-\u200D]+/g, "").trim() ||
           (active.skipStyle === "night"
@@ -1904,10 +2763,12 @@ function WorldCalendar(hook, inputText) {
         const transaction = clock.journal.find((item) => item.id === active.id);
         if (transaction && !Number.isInteger(transaction.commitActionCount)) {
           transaction.commitActionCount = safeActionCount();
+          transaction.commitTurnSerial = clock.inputTurnSerial;
+          transaction.undoExpiresTurnSerial = transaction.commitTurnSerial + UNDO_WINDOW_ACTIONS;
         }
       } else if (active.kind === "travel") {
         const body = text.replace(/[\u200B-\u200D]+/g, "").trim() ||
-          `The journey ends with the character's arrival at ${active.destinationLabel}.`;
+          `This travel stage ends with the character's arrival at ${active.destinationLabel}.`;
         const notices = active.transitions.length
           ? `\n\nCalendar events:\n${active.transitions.slice(0, 12).map((event) => `- ${transitionNotice(event)}`).join("\n")}${(
               active.transitions.length > 12
@@ -1916,12 +2777,20 @@ function WorldCalendar(hook, inputText) {
             )}`
           : "";
         const estimate = active.originWasEstimated
-          ? `\nRoute estimate: ${active.accessDays} ${active.accessDays === 1 ? "day" : "days"} to ${active.hubLabel}, then ${active.networkTravelDays} ${active.networkTravelDays === 1 ? "day" : "days"} to the destination.`
+          ? `\nThis stage used an estimated ${active.accessDays}-day journey to ${active.hubLabel}.`
           : "";
-        output = `[Journey: ${active.originLabel} → ${active.destinationLabel}]\nTravel time: ${active.travelDays} days${estimate}\nArrival date: ${active.afterLabel}${notices}\n\n${body}`;
+        const routeStatus = active.routeRemaining
+          ? `\n\nRoute paused at ${active.destinationLabel}.\nFinal destination: ${active.finalDestinationLabel}.\nUse :travel continue to preview the next stage, or :travel end to finish the route here.`
+          : `\n\nFinal destination reached. The staged journey is complete.`;
+        const journeyHeader = active.fullRoute
+          ? `[Full Journey: ${active.originLabel} → ${active.destinationLabel}]\nStages completed: ${active.remainingStageCount}\nTravel modes: ${active.travelMode || "land"}`
+          : `[Journey Stage ${active.stageNumber}/${active.stageCount}: ${active.originLabel} → ${active.destinationLabel}]\nTravel mode: ${active.travelMode || "land"}`;
+        output = `${journeyHeader}\nTravel time: ${active.travelDays} days${estimate}\nArrival date: ${active.afterLabel}${notices}\n\n${body}${routeStatus}`;
         const transaction = clock.journal.find((item) => item.id === active.id);
         if (transaction && !Number.isInteger(transaction.commitActionCount)) {
           transaction.commitActionCount = safeActionCount();
+          transaction.commitTurnSerial = clock.inputTurnSerial;
+          transaction.undoExpiresTurnSerial = transaction.commitTurnSerial + UNDO_WINDOW_ACTIONS;
         }
       }
       output = `\n\n${String(output || "").trim()}\n\n`;
