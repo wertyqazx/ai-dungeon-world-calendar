@@ -3,10 +3,11 @@
   "version": "1.1.1",
   "private": true,
   "scripts": {
-    "test": "node tests/test_world_calendar.js && node tests/test_autocards.js && node tests/test_combined.js",
+    "test": "node tests/test_world_calendar.js && node tests/test_autocards.js && node tests/test_combined.js && node tests/test_island_events.js",
     "test:calendar": "node tests/test_world_calendar.js",
     "test:autocards": "node tests/test_autocards.js",
     "test:combined": "node tests/test_combined.js",
+    "test:island": "node tests/test_island_events.js",
     "routes:example": "node tools/generate-route-template.js examples/locations.example.json 30"
   }
 }
