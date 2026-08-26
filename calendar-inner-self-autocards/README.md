@@ -11,8 +11,10 @@ Paste these files into the matching AI Dungeon script tabs:
 - `context.js` → Context
 - `output.js` → Output
 
-Edit `WorldCalendarSettings` in `library.js` before use. Inner Self keeps its
-official behavior and configuration. This distribution enables its included
+Edit `WorldCalendarSettings` at the very top of `library.js` before use. It is
+placed above both Inner Self and Auto-Cards settings. The ready-to-use defaults
+are `1 January 2000 AD` and disabled travel. Inner Self keeps its official
+behavior and configuration. This distribution enables its included
 Auto-Cards integration by default; it can also be controlled through Inner
 Self's configuration or with the `/AC` command.
 
@@ -20,7 +22,7 @@ The upstream Inner Self source is retained without modification under
 `vendor/inner-self`, together with its original README and MIT license. The
 four top-level files in this folder are the ready-to-paste combined version.
 
-World Calendar v1.2.1 supports safe-skip confirmations, three-action undo,
+World Calendar v1.2.2 supports safe-skip confirmations, three-action undo,
 staged journeys, calendar seasons, and deterministic climate-based weather
 with manual overrides.
 

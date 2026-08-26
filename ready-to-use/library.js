@@ -1,11 +1,11 @@
-// AI Dungeon World Calendar v1.2.2
-// Paste this entire file into the AI Dungeon "Library" script tab.
+// AI Dungeon World Calendar v1.2.2 — Ready-to-Use Edition
+// Published-script build: connect it and configure the generated Story Cards.
 
 /**
- * Creator configuration. Edit this block before publishing your scenario.
+ * Locked ready-to-use defaults. Players configure the generated Story Cards.
  */
 globalThis.WorldCalendarSettings = {
-  START_DATE: { year: 2000, month: 1, day: 1 },
+  START_DATE: { year: 1000, month: 1, day: 1 },
   ERA: "AD",
   CALENDAR_CARD_TITLE: "World Calendar",
   MAX_SKIP_YEARS: 1000,
@@ -15,79 +15,27 @@ globalThis.WorldCalendarSettings = {
   // Seasons follow the ordinary northern-hemisphere calendar. Local conditions
   // and temperatures are generated deterministically from date and climate.
   WEATHER_ENABLED: true,
-  CLIMATE_BY_REGION: {
-    "Example Kingdom": "temperate",
-    "Coastal Republic": "warm_maritime",
-    "Frontier League": "warm_frontier"
-  },
-  CLIMATE_BY_LOCATION: {
-    "Eastwatch": "mountain"
-  },
+  CLIMATE_BY_REGION: {},
+  CLIMATE_BY_LOCATION: {},
 
   // Travel is optional. The calendar and events work when this is false.
   ENABLE_TRAVEL: false,
-  START_LOCATION: {
-    id: "hearthport",
-    name: "Hearthport",
-    state: "Example Kingdom",
-    continent: "Western Lands"
-  },
+  START_LOCATION: null,
 
   // Used for Character Creator and opening-text location detection.
-  LOCATION_GROUPS: [
-    {
-      state: "Example Kingdom",
-      continent: "Western Lands",
-      aliases: [],
-      locations: ["Hearthport", "Rivergate"]
-    },
-    {
-      state: "Coastal Republic",
-      continent: "Southern Shores",
-      aliases: [],
-      locations: ["Sunharbor"]
-    },
-    {
-      state: "Frontier League",
-      continent: "Eastern Expanse",
-      aliases: [],
-      locations: ["Eastwatch"]
-    }
-  ],
+  LOCATION_GROUPS: [],
 
   // Concrete destinations available to :travel when ENABLE_TRAVEL is true.
-  TRAVEL_NODES: [
-    { id: "hearthport", name: "Hearthport", state: "Example Kingdom", continent: "Western Lands", access: 0, aliases: [] },
-    { id: "rivergate", name: "Rivergate", state: "Example Kingdom", continent: "Western Lands", access: 2, aliases: [] },
-    { id: "sunharbor", name: "Sunharbor", state: "Coastal Republic", continent: "Southern Shores", access: 1, aliases: [] },
-    { id: "eastwatch", name: "Eastwatch", state: "Frontier League", continent: "Eastern Expanse", access: 3, aliases: [] }
-  ],
+  TRAVEL_NODES: [],
 
   // Optional hubs allow travel to begin from a custom place in a known region.
-  STATE_TRAVEL_HUBS: {
-    "Example Kingdom": "hearthport",
-    "Coastal Republic": "sunharbor",
-    "Frontier League": "eastwatch"
-  },
-  CONTINENT_TRAVEL_HUBS: {
-    "Western Lands": "hearthport",
-    "Southern Shores": "sunharbor",
-    "Eastern Expanse": "eastwatch"
-  },
-  CONTINENT_ALIASES: [
-    { name: "Western Lands", aliases: ["Western Lands"] },
-    { name: "Southern Shores", aliases: ["Southern Shores"] },
-    { name: "Eastern Expanse", aliases: ["Eastern Expanse"] }
-  ],
+  STATE_TRAVEL_HUBS: {},
+  CONTINENT_TRAVEL_HUBS: {},
+  CONTINENT_ALIASES: [],
 
   // Direct symmetric links used to build shortest staged routes.
   // mode is displayed to the player. transition and restrictedState are optional.
-  TRAVEL_EDGES: [
-    { leftId: "hearthport", rightId: "rivergate", days: 14, mode: "land" },
-    { leftId: "hearthport", rightId: "sunharbor", days: 20, mode: "sea", transition: true },
-    { leftId: "rivergate", rightId: "eastwatch", days: 32, mode: "land" },
-    { leftId: "sunharbor", rightId: "eastwatch", days: 18, mode: "sea", transition: true }
-  ],
+  TRAVEL_EDGES: [],
 
   // Legacy complete TRAVEL_DAYS tables remain supported when TRAVEL_EDGES is empty.
   TRAVEL_DAYS: {},
@@ -119,96 +67,6 @@ function WorldCalendar(hook, inputText) {
         Spring: ["Mild and partly cloudy", "Steady spring rain", "Brief showers", "Cool morning fog", "Windy with broken clouds"],
         Summer: ["Clear and warm", "Partly cloudy", "Warm rain", "A passing thunderstorm", "Humid and still"],
         Autumn: ["Cool and overcast", "Steady rain", "Low morning fog", "Clear and crisp", "Strong cool wind"]
-      }
-    },
-    warm_temperate: {
-      temperatures: { Winter: [4, 14], Spring: [11, 23], Summer: [23, 35], Autumn: [13, 25] },
-      conditions: {
-        Winter: ["Cool and clear", "Overcast with light rain", "Damp morning fog", "Windy and cool", "A brief cold shower"],
-        Spring: ["Warm and clear", "Mild rain", "Partly cloudy", "Fresh river mist", "A brief thunder shower"],
-        Summer: ["Hot and clear", "Humid and bright", "A heavy afternoon shower", "A distant thunderstorm", "Hot with light wind"],
-        Autumn: ["Warm and overcast", "Steady rain", "Clear and mild", "Humid morning mist", "Windy with scattered showers"]
-      }
-    },
-    cold_maritime: {
-      temperatures: { Winter: [-10, 3], Spring: [1, 11], Summer: [10, 20], Autumn: [2, 12] },
-      conditions: {
-        Winter: ["Cold coastal wind", "Wet snow", "Freezing rain", "Low sea fog", "Clear and bitterly cold"],
-        Spring: ["Cold sea mist", "Drizzle and strong wind", "Patchy rain", "Cool and clear", "Low coastal clouds"],
-        Summer: ["Cool and sunny", "Cloudy with sea wind", "Light coastal rain", "Dense morning fog", "A brief squall"],
-        Autumn: ["Strong cold wind", "Heavy coastal rain", "Thick sea fog", "Overcast and raw", "An early wet snowfall"]
-      }
-    },
-    mountain: {
-      temperatures: { Winter: [-18, -2], Spring: [-5, 10], Summer: [5, 18], Autumn: [-4, 10] },
-      conditions: {
-        Winter: ["Heavy snow", "Clear with severe frost", "Blowing snow", "Dense freezing fog", "A hard mountain wind"],
-        Spring: ["Cold and bright", "Melting snow with mist", "Sleet", "Mountain rain", "Sudden snowfall"],
-        Summer: ["Clear and cool", "Fast-moving mountain clouds", "Cold rain", "A sharp thunderstorm", "High valley mist"],
-        Autumn: ["Cold and windy", "Early snow", "Low mountain fog", "Freezing rain", "Clear with night frost"]
-      }
-    },
-    warm_maritime: {
-      temperatures: { Winter: [7, 16], Spring: [13, 23], Summer: [22, 33], Autumn: [15, 25] },
-      conditions: {
-        Winter: ["Mild with sea wind", "Steady coastal rain", "Low harbor fog", "Cloudy and damp", "Clear and cool"],
-        Spring: ["Mild and sunny", "Fresh sea breeze", "Brief coastal showers", "Morning mist", "Partly cloudy"],
-        Summer: ["Hot and sunny", "Humid with a sea breeze", "A brief warm shower", "Clear and windy", "A coastal thunderstorm"],
-        Autumn: ["Warm and cloudy", "Persistent coastal rain", "Strong sea wind", "Humid harbor fog", "Clear and mild"]
-      }
-    },
-    desert: {
-      temperatures: { Winter: [5, 20], Spring: [15, 30], Summer: [28, 45], Autumn: [18, 33] },
-      conditions: {
-        Winter: ["Clear and dry", "Cool with a light desert wind", "Cold before sunrise", "Dusty and overcast", "Rare light rain"],
-        Spring: ["Dry and sunny", "A hot dusty wind", "Clear with rising heat", "Blowing dust", "A rare brief shower"],
-        Summer: ["Extremely hot and cloudless", "Dry with shimmering heat", "A strong hot wind", "Blowing sand", "Still and oppressive heat"],
-        Autumn: ["Hot and clear", "Dry with a cooling wind", "Dust haze", "Warm and cloudless", "A rare desert shower"]
-      }
-    },
-    desert_coast: {
-      temperatures: { Winter: [10, 22], Spring: [18, 29], Summer: [27, 39], Autumn: [20, 32] },
-      conditions: {
-        Winter: ["Clear with a cool sea breeze", "Coastal haze", "Dry and mild", "Low morning fog", "A rare light shower"],
-        Spring: ["Sunny with sea wind", "Warm coastal haze", "Dry and bright", "Humid morning mist", "Windblown dust"],
-        Summer: ["Very hot with a sea breeze", "Humid and bright", "Hot coastal haze", "Strong dry wind", "Still and oppressive heat"],
-        Autumn: ["Warm and clear", "Humid coastal haze", "Dry with a steady breeze", "Cloudy but warm", "A rare coastal shower"]
-      }
-    },
-    humid_forest: {
-      temperatures: { Winter: [3, 12], Spring: [10, 22], Summer: [18, 30], Autumn: [9, 21] },
-      conditions: {
-        Winter: ["Cold forest mist", "Steady rain", "Damp and overcast", "Clear beneath a cold canopy", "Light sleet"],
-        Spring: ["Warm rain", "Dense morning mist", "Bright after a shower", "Humid and overcast", "A brief thunderstorm"],
-        Summer: ["Hot and humid", "Heavy forest rain", "A violent thunderstorm", "Warm mist beneath the canopy", "Bright with scattered showers"],
-        Autumn: ["Cool forest rain", "Thick ground fog", "Damp and still", "Wind in the canopy", "Clear and mild"]
-      }
-    },
-    tropical_maritime: {
-      temperatures: { Winter: [19, 28], Spring: [22, 31], Summer: [26, 36], Autumn: [23, 32] },
-      conditions: {
-        Winter: ["Warm with a steady sea breeze", "Clear and humid", "A brief tropical shower", "Coastal haze", "Cloudy and warm"],
-        Spring: ["Hot and bright", "Humid with scattered showers", "Strong sea wind", "A warm thunderstorm", "Morning coastal mist"],
-        Summer: ["Hot and intensely humid", "Heavy tropical rain", "A powerful coastal thunderstorm", "Strong squalls", "Bright between sudden showers"],
-        Autumn: ["Warm and humid", "Persistent coastal rain", "A passing squall", "Cloudy with sea wind", "Clear after heavy rain"]
-      }
-    },
-    warm_frontier: {
-      temperatures: { Winter: [8, 20], Spring: [15, 28], Summer: [24, 37], Autumn: [14, 28] },
-      conditions: {
-        Winter: ["Cool and dry", "Overcast with light rain", "Clear with a strong wind", "Morning ground fog", "A brief cold shower"],
-        Spring: ["Warm and clear", "Windy with scattered clouds", "A sudden shower", "Dry and dusty", "A passing thunderstorm"],
-        Summer: ["Hot and clear", "Humid and still", "A severe afternoon thunderstorm", "Hot with strong wind", "Heavy rain"],
-        Autumn: ["Warm and dry", "Cloudy with rain", "Strong frontier wind", "Clear and mild", "Morning mist"]
-      }
-    },
-    tropical_forest: {
-      temperatures: { Winter: [18, 27], Spring: [21, 30], Summer: [25, 34], Autumn: [22, 31] },
-      conditions: {
-        Winter: ["Warm beneath a misty canopy", "Light forest rain", "Humid and cloudy", "Clear with ground fog", "A brief shower"],
-        Spring: ["Warm and humid", "Frequent forest showers", "Dense mist", "A strong thunderstorm", "Bright through broken clouds"],
-        Summer: ["Hot and saturated with humidity", "Torrential rain", "A violent forest thunderstorm", "Heavy mist after rain", "Bright between downpours"],
-        Autumn: ["Warm with steady rain", "Humid and overcast", "Low forest fog", "A passing thunderstorm", "Clear and still"]
       }
     }
   };
@@ -300,11 +158,16 @@ function WorldCalendar(hook, inputText) {
     return { year, month, day: remaining + 1 };
   };
 
+  const normalizeEra = (source) => {
+    const value = String(source || "").trim();
+    return value && value.length <= 24 && !/[\n\r|]/.test(value) ? value : null;
+  };
+
   const formatDate = (dateOrOrdinal) => {
     const date = (typeof dateOrOrdinal === "number")
       ? ordinalToDate(dateOrOrdinal)
       : dateOrOrdinal;
-    return `${date.day} ${MONTHS[date.month - 1]} ${date.year} ${SETTINGS.ERA || "AD"}`;
+    return `${date.day} ${MONTHS[date.month - 1]} ${date.year} ${clock.era}`;
   };
 
   const seasonForOrdinal = (ordinal) => {
@@ -317,11 +180,14 @@ function WorldCalendar(hook, inputText) {
 
   const startDate = isValidDate(SETTINGS.START_DATE)
     ? SETTINGS.START_DATE
-    : { year: 2000, month: 1, day: 1 };
+    : { year: 1000, month: 1, day: 1 };
   const startOrdinal = dateToOrdinal(startDate);
 
   const clock = state.WorldCalendar = state.WorldCalendar || {};
-  clock.version = 9;
+  clock.version = 10;
+  if (!normalizeEra(clock.era)) {
+    clock.era = normalizeEra(SETTINGS.ERA) || "AD";
+  }
   if (!Number.isInteger(clock.absoluteDay) || clock.absoluteDay < 0) {
     clock.absoluteDay = startOrdinal;
   }
@@ -585,22 +451,7 @@ function WorldCalendar(hook, inputText) {
     return hash >>> 0;
   };
 
-  const configuredClimate = () => {
-    const locationMap = SETTINGS.CLIMATE_BY_LOCATION && typeof SETTINGS.CLIMATE_BY_LOCATION === "object"
-      ? SETTINGS.CLIMATE_BY_LOCATION
-      : {};
-    const regionMap = SETTINGS.CLIMATE_BY_REGION && typeof SETTINGS.CLIMATE_BY_REGION === "object"
-      ? SETTINGS.CLIMATE_BY_REGION
-      : {};
-    const locationMatch = Object.entries(locationMap).find(([name]) => (
-      name.toLowerCase() === String(clock.location.name || "").toLowerCase()
-    ));
-    const regionMatch = Object.entries(regionMap).find(([name]) => (
-      name.toLowerCase() === String(clock.location.state || "").toLowerCase()
-    ));
-    const profileId = String(locationMatch?.[1] || regionMatch?.[1] || "temperate");
-    return WEATHER_PROFILES[profileId] ? profileId : "temperate";
-  };
+  const configuredClimate = () => "temperate";
 
   const currentEnvironment = () => {
     const season = seasonForOrdinal(clock.absoluteDay);
@@ -611,12 +462,7 @@ function WorldCalendar(hook, inputText) {
     const profile = WEATHER_PROFILES[climate] || WEATHER_PROFILES.temperate;
     const conditions = profile.conditions[season] || profile.conditions.Spring;
     const temperatureRange = profile.temperatures[season] || profile.temperatures.Spring;
-    const seed = [
-      clock.absoluteDay,
-      String(clock.location.name || "").toLowerCase(),
-      String(clock.location.state || "").toLowerCase(),
-      climate
-    ].join("|");
+    const seed = [clock.absoluteDay, climate].join("|");
     const condition = conditions[stableHash(`${seed}|condition`) % conditions.length];
     const minimum = temperatureRange[0];
     const maximum = temperatureRange[1];
@@ -1298,7 +1144,6 @@ function WorldCalendar(hook, inputText) {
       `Date: ${formatDate(clock.absoluteDay)}`,
       `Location: ${clock.location.name}`,
       "=== END EDITABLE STATE ===",
-      `Region: ${clock.location.state}, ${clock.location.continent}.`,
       `Season: ${environment.season}.`,
       ...(environment.condition ? [
         `Weather: ${environment.condition}.`,
@@ -1327,24 +1172,26 @@ function WorldCalendar(hook, inputText) {
     "=== WORLD CALENDAR SETTINGS ===",
     `Enabled: ${enabled ? "true" : "false"}`,
     `Auto-Skip Limit: ${autoSkipLimit} days`,
-    `Complete Full Route Immediately: ${completeFullRouteImmediately ? "true" : "false"}`,
     "=== END SETTINGS ===",
     "Set Enabled to false to disable World Calendar, all WC commands, time progression, travel, event processing, and calendar context.",
     "Set Enabled to true to turn World Calendar back on. Other scripts continue to work while WC is disabled.",
     "Set Auto-Skip Limit to the largest number of days that should skip immediately without confirmation. The default is 7. :skip night always runs immediately.",
-    "Set Complete Full Route Immediately to true to finish every remaining travel stage after one confirmation. The default is false, so journeys pause at intermediate stops.",
+    "",
+    "READY-TO-USE SETUP:",
+    "The default date, 1 January 1000 AD, is a neutral placeholder.",
+    "Edit the Date line at the top of the Entry to match your story. You may replace AD with any era label, for example CE, BCE, ALD, or Imperial Era.",
+    "For the full calendar experience, add your world's holidays, birthdays, anniversaries, and one-time dates to the separate Custom Events card.",
+    "No holidays are included by default.",
     "",
     "Enter all World Calendar commands as Story actions, not Do actions.",
     "Do may rewrite commands and cause valid commands to fail.",
     "",
     "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
-    "AI Dungeon World Calendar v1.2.2",
+    "AI Dungeon World Calendar v1.2.2 — Ready-to-Use Edition",
     clock.lastCardEditError ? `Last edit error: ${clock.lastCardEditError}` : "Editable state is valid.",
-    "Edit the Date or Location lines at the top of the Entry.",
+    "Edit the Date (including its year and era label) or Location lines at the top of the Entry.",
     "Manual edits are administrative corrections and do not create a narrated time skip or journey.",
-    "Season and local weather are derived automatically from the current Date and Location.",
-    "When a journey is paused, use :travel continue to resume it or :travel end to remain at the current stop.",
-    "Add personal yearly or one-time events in the separate Custom Events card.",
+    "Season, weather, and temperature change automatically from the current Date without requiring a regional climate configuration.",
     "",
     "Available commands:",
     ":skip <duration>",
@@ -1356,12 +1203,9 @@ function WorldCalendar(hook, inputText) {
     ":skip 1 year",
     ":skip 1 year 2 months 3 days",
     ":skip night — advance to the next morning",
-    ":travel Rivergate",
-    ":travel continue — preview and resume the next stage of a paused journey",
-    ":travel end — abandon the saved route and remain at the current stop",
-    ":yes — confirm a pending long skip or journey",
-    ":no — cancel a pending long skip or journey",
-    ":undo — undo the latest completed skip or journey within 3 actions",
+    ":yes — confirm a pending long skip",
+    ":no — cancel a pending long skip",
+    ":undo — undo the latest completed skip within 3 actions",
     ":weather <description> — override today's local weather",
     ":weather <description> | <°C> — override today's weather and temperature",
     ":temperature <°C> — change only today's local temperature",
@@ -1369,13 +1213,12 @@ function WorldCalendar(hook, inputText) {
     "",
     ":date — show the current date",
     ":where — show the current location",
-    ":travel <city> — travel to a configured destination from any location with a known region or continent",
     ":help — show command help",
     "",
     "Advanced correction command:",
-    ":setlocation Hearthport",
+    ":setlocation <place>",
     "",
-    `Starting date: ${formatDate(startOrdinal)}.`,
+    `Default placeholder date: ${formatDate(startOrdinal)}.`,
     "Normal story actions do not advance the calendar."
   ].join("\n");
 
@@ -1398,15 +1241,19 @@ function WorldCalendar(hook, inputText) {
 
   const parseEditableDate = (source) => {
     const value = String(source || "").trim();
-    const named = value.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d+)(?:\s+[A-Za-z][A-Za-z0-9_-]*)?$/i);
+    const named = value.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d+)(?:\s+(.{1,24}))?$/i);
     if (named) {
       const month = MONTHS.findIndex((name) => name.toLowerCase() === named[2].toLowerCase()) + 1;
-      const date = { day: Number(named[1]), month, year: Number(named[3]) };
+      const era = named[4] == null ? null : normalizeEra(named[4]);
+      if (named[4] != null && !era) return null;
+      const date = { day: Number(named[1]), month, year: Number(named[3]), era };
       return isValidDate(date) ? date : null;
     }
-    const numeric = value.match(/^(\d+)-(\d{1,2})-(\d{1,2})$/);
+    const numeric = value.match(/^(\d+)-(\d{1,2})-(\d{1,2})(?:\s+(.{1,24}))?$/);
     if (numeric) {
-      const date = { year: Number(numeric[1]), month: Number(numeric[2]), day: Number(numeric[3]) };
+      const era = numeric[4] == null ? null : normalizeEra(numeric[4]);
+      if (numeric[4] != null && !era) return null;
+      const date = { year: Number(numeric[1]), month: Number(numeric[2]), day: Number(numeric[3]), era };
       return isValidDate(date) ? date : null;
     }
     return null;
@@ -1416,7 +1263,7 @@ function WorldCalendar(hook, inputText) {
     "Custom Events",
     "=== CUSTOM EVENTS ===",
     "# yearly | 12 May | Mira's Birthday | 1 day",
-    "# once | 18 June 4813 | Oakrest Celebration | 3 days",
+    "# once | 18 June 1000 | Oakrest Celebration | 3 days",
     "=== END CUSTOM EVENTS ==="
   ].join("\n");
 
@@ -1428,6 +1275,7 @@ function WorldCalendar(hook, inputText) {
     "once | DAY MONTH YEAR | TITLE | N days",
     "The duration is optional and defaults to 1 day.",
     "Lines beginning with # are examples and are ignored.",
+    "For the full calendar experience, add the holidays and important dates used by your world.",
     "",
     clock.customEventErrors?.length
       ? `Errors:\n${clock.customEventErrors.map((error) => `- ${error}`).join("\n")}`
@@ -1644,8 +1492,10 @@ function WorldCalendar(hook, inputText) {
         errors.push(`Invalid date '${dateText}'.`);
       } else {
         const parsedOrdinal = dateToOrdinal(parsedDate);
-        if (parsedOrdinal !== clock.absoluteDay) {
+        const parsedEra = parsedDate.era || clock.era;
+        if (parsedOrdinal !== clock.absoluteDay || parsedEra !== clock.era) {
           clock.absoluteDay = parsedOrdinal;
+          clock.era = parsedEra;
           dateChanged = true;
         }
       }
@@ -2182,7 +2032,7 @@ function WorldCalendar(hook, inputText) {
     ...(TRAVEL_ENABLED ? [
       "Travel:",
       ":travel <destination> — plan a route to a configured destination",
-      "Example: :travel Rivergate",
+      "Example: :travel Northport",
       "Long routes are divided into stages and pause at every intermediate stop.",
       ":travel continue — preview the next stage of the saved route",
       ":travel end — end the saved route and remain at the current stop",
@@ -2193,15 +2043,21 @@ function WorldCalendar(hook, inputText) {
       "A precise starting destination is not required when the current region or continent is known.",
       "For a custom starting point, travel time includes an estimated journey to the region's nearest hub, then the configured route.",
       "Use :setlocation <place, region or continent> when the calendar does not know where the character is.",
-      "Example: :setlocation Old Ruins, Western Lands",
+      "Example: :setlocation Old Ruins",
       ""
     ] : [
-      "Travel is disabled in this scenario. The scenario creator can enable it in WorldCalendarSettings.",
+      "Travel is not included in the Ready-to-Use Edition.",
       "Use :setlocation <destination> to correct the current location manually.",
       ""
     ]),
-    "Season and local weather are derived automatically from the current date and location.",
-    "Weather remains stable for the same date and place, including after Retry.",
+    "First-time setup:",
+    "Open the World Calendar Story Card and replace the default 1 January 1000 AD with your story's date, year, and era label.",
+    "Open the Custom Events Story Card and add your world's holidays and important dates for the full calendar experience.",
+    "No holidays are included by default.",
+    "",
+    "Season, weather, and temperature are derived automatically from the current date.",
+    "The Ready-to-Use Edition uses a neutral default climate and does not require region data.",
+    "Weather remains stable for the same date, including after Retry.",
     "A manual weather override applies only to the current date and location.",
     ":weather <description> — replace today's automatically generated local weather",
     "Example: :weather Heavy rain | 8°C",
@@ -2247,7 +2103,6 @@ function WorldCalendar(hook, inputText) {
       "# WORLD TIME — AUTHORITATIVE STATE",
       `Current date: ${formatDate(clock.absoluteDay)}.`,
       `Current location: ${clock.location.name}.`,
-      `Current region: ${clock.location.state}, ${clock.location.continent}.`,
       `Current season: ${environment.season}.`,
       ...(!isTransitionTurn && environment.condition ? [
         `Current weather: ${environment.condition}.`,

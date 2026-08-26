@@ -51,7 +51,7 @@ function card(runtime, title) {
 {
   const runtime = buildRuntime();
   const date = submit(runtime, ":date");
-  assert.match(date.output, /1 January 1000 AE/);
+  assert.match(date.output, /1 January 2000 AD/);
   assert.match(date.context, /<SYSTEM>\n# WORLD TIME — AUTHORITATIVE STATE/);
   assert.match(date.context, /Current location: Hearthport\./);
   assert.match(date.context, /Current region: Example Kingdom, Western Lands\./);
@@ -122,7 +122,7 @@ function card(runtime, title) {
   assert.equal(runtime.state.WorldCalendar.location.name, "Hearthport");
   const journey = submit(runtime, ":yes", "The road reaches Rivergate.");
   assert.match(journey.output, /Travel time: 14 days/);
-  assert.match(journey.output, /Arrival date: 15 January 1000 AE/);
+  assert.match(journey.output, /Arrival date: 15 January 2000 AD/);
   assert.equal(runtime.state.WorldCalendar.location.name, "Rivergate");
 
   const help = submit(runtime, ":help");
@@ -172,16 +172,16 @@ function card(runtime, title) {
   const runtime = buildRuntime();
   submit(runtime, ":date");
   const calendar = card(runtime, "World Calendar");
-  calendar.entry = calendar.entry.replace(/^Date:.*$/m, "Date: 13 May 1002 AE");
+  calendar.entry = calendar.entry.replace(/^Date:.*$/m, "Date: 13 May 2002 AD");
   const context = runtime.WorldCalendar("context", "Continue after editing the card");
-  assert.match(context, /Current date: 13 May 1002 AE/);
+  assert.match(context, /Current date: 13 May 2002 AD/);
 
   const editor = card(runtime, "Custom Events");
   editor.entry = [
     "Custom Events",
     "=== CUSTOM EVENTS ===",
     "yearly | 14 May | Founder's Birthday | 1 day",
-    "once | 15 May 1002 | Market Opening | 1 day",
+    "once | 15 May 2002 | Market Opening | 1 day",
     "=== END CUSTOM EVENTS ==="
   ].join("\n");
   runtime.WorldCalendar("context", "Read custom events");

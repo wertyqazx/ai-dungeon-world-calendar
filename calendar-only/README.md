@@ -11,8 +11,9 @@ Paste these files into the matching AI Dungeon script tabs:
 - `output.js` → Output
 
 Edit `WorldCalendarSettings` near the beginning of `library.js` before using
-the scripts. Travel is disabled by default and can be enabled after locations
-and direct route links have been configured. Version 1.2.1 supports safe-skip
+the scripts. The ready-to-use default is `1 January 2000 AD`. Travel is disabled
+by default and can be enabled after locations and direct route links have been
+configured. Version 1.2.2 supports safe-skip
 confirmations, three-action undo, staged journeys, calendar seasons, and
 deterministic climate-based weather with manual overrides.
 

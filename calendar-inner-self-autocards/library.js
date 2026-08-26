@@ -1,5 +1,101 @@
-// AI Dungeon World Calendar + Inner Self + Auto-Cards v1.1.0 (experimental)
-// Inner Self v1.0.2 + Auto-Cards v1.1.3 + World Calendar v1.1.0
+// AI Dungeon World Calendar + Inner Self + Auto-Cards v1.2.2 (experimental)
+// Inner Self v1.0.2 + Auto-Cards v1.1.3 + World Calendar v1.2.2
+
+/**
+ * Creator configuration. Edit this block before publishing your scenario.
+ */
+globalThis.WorldCalendarSettings = {
+  START_DATE: { year: 2000, month: 1, day: 1 },
+  ERA: "AD",
+  CALENDAR_CARD_TITLE: "World Calendar",
+  MAX_SKIP_YEARS: 1000,
+  AUTO_SKIP_LIMIT_DAYS: 7,
+  MAX_RECENT_EVENTS: 5,
+
+  // Seasons follow the ordinary northern-hemisphere calendar. Local conditions
+  // and temperatures are generated deterministically from date and climate.
+  WEATHER_ENABLED: true,
+  CLIMATE_BY_REGION: {
+    "Example Kingdom": "temperate",
+    "Coastal Republic": "warm_maritime",
+    "Frontier League": "warm_frontier"
+  },
+  CLIMATE_BY_LOCATION: {
+    "Eastwatch": "mountain"
+  },
+
+  // Travel is optional. The calendar and events work when this is false.
+  ENABLE_TRAVEL: false,
+  START_LOCATION: {
+    id: "hearthport",
+    name: "Hearthport",
+    state: "Example Kingdom",
+    continent: "Western Lands"
+  },
+
+  // Used for Character Creator and opening-text location detection.
+  LOCATION_GROUPS: [
+    {
+      state: "Example Kingdom",
+      continent: "Western Lands",
+      aliases: [],
+      locations: ["Hearthport", "Rivergate"]
+    },
+    {
+      state: "Coastal Republic",
+      continent: "Southern Shores",
+      aliases: [],
+      locations: ["Sunharbor"]
+    },
+    {
+      state: "Frontier League",
+      continent: "Eastern Expanse",
+      aliases: [],
+      locations: ["Eastwatch"]
+    }
+  ],
+
+  // Concrete destinations available to :travel when ENABLE_TRAVEL is true.
+  TRAVEL_NODES: [
+    { id: "hearthport", name: "Hearthport", state: "Example Kingdom", continent: "Western Lands", access: 0, aliases: [] },
+    { id: "rivergate", name: "Rivergate", state: "Example Kingdom", continent: "Western Lands", access: 2, aliases: [] },
+    { id: "sunharbor", name: "Sunharbor", state: "Coastal Republic", continent: "Southern Shores", access: 1, aliases: [] },
+    { id: "eastwatch", name: "Eastwatch", state: "Frontier League", continent: "Eastern Expanse", access: 3, aliases: [] }
+  ],
+
+  // Optional hubs allow travel to begin from a custom place in a known region.
+  STATE_TRAVEL_HUBS: {
+    "Example Kingdom": "hearthport",
+    "Coastal Republic": "sunharbor",
+    "Frontier League": "eastwatch"
+  },
+  CONTINENT_TRAVEL_HUBS: {
+    "Western Lands": "hearthport",
+    "Southern Shores": "sunharbor",
+    "Eastern Expanse": "eastwatch"
+  },
+  CONTINENT_ALIASES: [
+    { name: "Western Lands", aliases: ["Western Lands"] },
+    { name: "Southern Shores", aliases: ["Southern Shores"] },
+    { name: "Eastern Expanse", aliases: ["Eastern Expanse"] }
+  ],
+
+  // Direct symmetric links used to build shortest staged routes.
+  // mode is displayed to the player. transition and restrictedState are optional.
+  TRAVEL_EDGES: [
+    { leftId: "hearthport", rightId: "rivergate", days: 14, mode: "land" },
+    { leftId: "hearthport", rightId: "sunharbor", days: 20, mode: "sea", transition: true },
+    { leftId: "rivergate", rightId: "eastwatch", days: 32, mode: "land" },
+    { leftId: "sunharbor", rightId: "eastwatch", days: 18, mode: "sea", transition: true }
+  ],
+
+  // Legacy complete TRAVEL_DAYS tables remain supported when TRAVEL_EDGES is empty.
+  TRAVEL_DAYS: {},
+
+  // Annual and one-time events. Add your own entries using docs/EVENTS.md.
+  RECURRING_FESTIVALS: [],
+  SCHEDULED_EVENTS: []
+};
 
 // Your "Library" tab should look like this
 
@@ -8788,106 +8884,7 @@ function AutoCards(inHook, inText, inStop) {
 // This experimental distribution enables Auto-Cards by default.
 globalThis.MainSettings.InnerSelf.IS_AC_ENABLED_BY_DEFAULT = true;
 
-// ——— World Calendar overlay ———
-
-// AI Dungeon World Calendar v1.2.1
-// Paste this entire file into the AI Dungeon "Library" script tab.
-
-/**
- * Creator configuration. Edit this block before publishing your scenario.
- */
-globalThis.WorldCalendarSettings = {
-  START_DATE: { year: 1000, month: 1, day: 1 },
-  ERA: "AE",
-  CALENDAR_CARD_TITLE: "World Calendar",
-  MAX_SKIP_YEARS: 1000,
-  AUTO_SKIP_LIMIT_DAYS: 7,
-  MAX_RECENT_EVENTS: 5,
-
-  // Seasons follow the ordinary northern-hemisphere calendar. Local conditions
-  // and temperatures are generated deterministically from date and climate.
-  WEATHER_ENABLED: true,
-  CLIMATE_BY_REGION: {
-    "Example Kingdom": "temperate",
-    "Coastal Republic": "warm_maritime",
-    "Frontier League": "warm_frontier"
-  },
-  CLIMATE_BY_LOCATION: {
-    "Eastwatch": "mountain"
-  },
-
-  // Travel is optional. The calendar and events work when this is false.
-  ENABLE_TRAVEL: false,
-  START_LOCATION: {
-    id: "hearthport",
-    name: "Hearthport",
-    state: "Example Kingdom",
-    continent: "Western Lands"
-  },
-
-  // Used for Character Creator and opening-text location detection.
-  LOCATION_GROUPS: [
-    {
-      state: "Example Kingdom",
-      continent: "Western Lands",
-      aliases: [],
-      locations: ["Hearthport", "Rivergate"]
-    },
-    {
-      state: "Coastal Republic",
-      continent: "Southern Shores",
-      aliases: [],
-      locations: ["Sunharbor"]
-    },
-    {
-      state: "Frontier League",
-      continent: "Eastern Expanse",
-      aliases: [],
-      locations: ["Eastwatch"]
-    }
-  ],
-
-  // Concrete destinations available to :travel when ENABLE_TRAVEL is true.
-  TRAVEL_NODES: [
-    { id: "hearthport", name: "Hearthport", state: "Example Kingdom", continent: "Western Lands", access: 0, aliases: [] },
-    { id: "rivergate", name: "Rivergate", state: "Example Kingdom", continent: "Western Lands", access: 2, aliases: [] },
-    { id: "sunharbor", name: "Sunharbor", state: "Coastal Republic", continent: "Southern Shores", access: 1, aliases: [] },
-    { id: "eastwatch", name: "Eastwatch", state: "Frontier League", continent: "Eastern Expanse", access: 3, aliases: [] }
-  ],
-
-  // Optional hubs allow travel to begin from a custom place in a known region.
-  STATE_TRAVEL_HUBS: {
-    "Example Kingdom": "hearthport",
-    "Coastal Republic": "sunharbor",
-    "Frontier League": "eastwatch"
-  },
-  CONTINENT_TRAVEL_HUBS: {
-    "Western Lands": "hearthport",
-    "Southern Shores": "sunharbor",
-    "Eastern Expanse": "eastwatch"
-  },
-  CONTINENT_ALIASES: [
-    { name: "Western Lands", aliases: ["Western Lands"] },
-    { name: "Southern Shores", aliases: ["Southern Shores"] },
-    { name: "Eastern Expanse", aliases: ["Eastern Expanse"] }
-  ],
-
-  // Direct symmetric links used to build shortest staged routes.
-  // mode is displayed to the player. transition and restrictedState are optional.
-  TRAVEL_EDGES: [
-    { leftId: "hearthport", rightId: "rivergate", days: 14, mode: "land" },
-    { leftId: "hearthport", rightId: "sunharbor", days: 20, mode: "sea", transition: true },
-    { leftId: "rivergate", rightId: "eastwatch", days: 32, mode: "land" },
-    { leftId: "sunharbor", rightId: "eastwatch", days: 18, mode: "sea", transition: true }
-  ],
-
-  // Legacy complete TRAVEL_DAYS tables remain supported when TRAVEL_EDGES is empty.
-  TRAVEL_DAYS: {},
-
-  // Annual and one-time events. Add your own entries using docs/EVENTS.md.
-  RECURRING_FESTIVALS: [],
-  SCHEDULED_EVENTS: []
-};
+// ——— World Calendar engine ———
 
 function WorldCalendar(hook, inputText) {
   "use strict";
@@ -9096,7 +9093,7 @@ function WorldCalendar(hook, inputText) {
     const date = (typeof dateOrOrdinal === "number")
       ? ordinalToDate(dateOrOrdinal)
       : dateOrOrdinal;
-    return `${date.day} ${MONTHS[date.month - 1]} ${date.year} ${SETTINGS.ERA || "AE"}`;
+    return `${date.day} ${MONTHS[date.month - 1]} ${date.year} ${SETTINGS.ERA || "AD"}`;
   };
 
   const seasonForOrdinal = (ordinal) => {
@@ -9109,7 +9106,7 @@ function WorldCalendar(hook, inputText) {
 
   const startDate = isValidDate(SETTINGS.START_DATE)
     ? SETTINGS.START_DATE
-    : { year: 4812, month: 1, day: 1 };
+    : { year: 2000, month: 1, day: 1 };
   const startOrdinal = dateToOrdinal(startDate);
 
   const clock = state.WorldCalendar = state.WorldCalendar || {};
@@ -10130,7 +10127,7 @@ function WorldCalendar(hook, inputText) {
     "Do may rewrite commands and cause valid commands to fail.",
     "",
     "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
-    "AI Dungeon World Calendar v1.2.1",
+    "AI Dungeon World Calendar v1.2.2",
     clock.lastCardEditError ? `Last edit error: ${clock.lastCardEditError}` : "Editable state is valid.",
     "Edit the Date or Location lines at the top of the Entry.",
     "Manual edits are administrative corrections and do not create a narrated time skip or journey.",

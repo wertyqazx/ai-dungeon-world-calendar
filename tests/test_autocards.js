@@ -5,8 +5,13 @@ const vm = require("node:vm");
 const root = "calendar-autocards";
 const library = fs.readFileSync(`${root}/library.js`, "utf8");
 const calendarLibrary = fs.readFileSync("calendar-only/library.js", "utf8");
+const calendarEngine = calendarLibrary.slice(calendarLibrary.indexOf("function WorldCalendar"));
 
-assert.ok(library.includes(calendarLibrary), "Combined builds must share the sanitized calendar core");
+assert.ok(library.includes(calendarEngine), "Combined builds must share the sanitized calendar engine");
+assert.ok(
+  library.indexOf("globalThis.WorldCalendarSettings") < library.indexOf("function AutoCards"),
+  "World Calendar settings must appear before Auto-Cards settings"
+);
 
 function buildRuntime() {
   const runtime = {
@@ -74,6 +79,12 @@ function submit(runtime, input, modelOutput = "The story continues.") {
   assert.equal(typeof normal.context.text, "string");
   assert.ok(runtime.state.WorldCalendar);
   assert.ok(runtime.state.AutoCards);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(runtime.WorldCalendarSettings.START_DATE)),
+    { year: 2000, month: 1, day: 1 }
+  );
+  assert.equal(runtime.WorldCalendarSettings.ERA, "AD");
+  assert.equal(runtime.WorldCalendarSettings.ENABLE_TRAVEL, false);
   assert.ok(runtime.storyCards.some((card) => card.title === "World Calendar"));
   assert.ok(runtime.storyCards.some((card) => card.title === "Custom Events"));
   assert.ok(runtime.storyCards.some((card) => /Configure\s+Auto-Cards/i.test(card.title)));

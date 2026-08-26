@@ -1,10 +1,12 @@
 {
   "name": "ai-dungeon-world-calendar",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "scripts": {
-    "test": "node tests/test_world_calendar.js && node tests/test_autocards.js && node tests/test_combined.js",
+    "build": "node tools/rebuild-combined-libraries.js calendar-only/library.js calendar-autocards/library.js calendar-inner-self-autocards/library.js",
+    "test": "node tests/test_world_calendar.js && node tests/test_ready_to_use.js && node tests/test_autocards.js && node tests/test_combined.js",
     "test:calendar": "node tests/test_world_calendar.js",
+    "test:ready": "node tests/test_ready_to_use.js",
     "test:autocards": "node tests/test_autocards.js",
     "test:combined": "node tests/test_combined.js",
     "routes:example": "node tools/generate-route-template.js examples/locations.example.json 30"

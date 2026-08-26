@@ -10,6 +10,11 @@ const upstreamInnerSelf = fs.readFileSync(
 ).trimEnd();
 
 assert.ok(
+  library.indexOf("globalThis.WorldCalendarSettings") < library.indexOf("globalThis.MainSettings"),
+  "World Calendar settings must appear before Inner Self and Auto-Cards settings"
+);
+
+assert.ok(
   library.includes(upstreamInnerSelf),
   "The combined build must contain the unmodified Inner Self source"
 );
@@ -84,6 +89,12 @@ function submit(runtime, input, modelOutput = "The story continues.") {
   assert.equal(typeof normal.context.stop, "boolean");
   assert.ok(runtime.state.WorldCalendar);
   assert.ok(runtime.state.InnerSelf);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(runtime.WorldCalendarSettings.START_DATE)),
+    { year: 2000, month: 1, day: 1 }
+  );
+  assert.equal(runtime.WorldCalendarSettings.ERA, "AD");
+  assert.equal(runtime.WorldCalendarSettings.ENABLE_TRAVEL, false);
   assert.ok(runtime.storyCards.some((card) => card.title === "World Calendar"));
   assert.ok(runtime.storyCards.some((card) => card.title === "Custom Events"));
   assert.ok(runtime.storyCards.some((card) => /Configure\s+Inner Self/i.test(card.title)));

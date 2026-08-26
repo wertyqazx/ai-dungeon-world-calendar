@@ -7,12 +7,19 @@ scenarios. The public package contains no setting-specific lore.
 
 | Version | Use it when | AI Dungeon files |
 | --- | --- | --- |
+| [Ready-to-Use Published Script](ready-to-use) | You are connecting a published script and cannot edit its code | `ready-to-use/*.js` |
 | [Calendar only](calendar-only) | You only need the calendar, events, and optional travel | `calendar-only/*.js` |
 | [Calendar + Auto-Cards](calendar-autocards) | You want automatic Story Card generation without Inner Self (recommended combined setup) | `calendar-autocards/*.js` |
 | [Calendar + Inner Self + Auto-Cards](calendar-inner-self-autocards) | You want all three systems together (experimental) | `calendar-inner-self-autocards/*.js` |
 
-Each version has its own README and four ready-to-paste AI Dungeon script
-files. Do not mix files between the three folders.
+Each version has its own README and four matching AI Dungeon script files. Do
+not mix files between the four folders.
+
+The [Ready-to-Use Published Script](ready-to-use) is the no-code edition. It
+starts from the neutral placeholder `1 January 1000 AD`, has no built-in
+holidays or routes, and uses automatic default weather without regional climate
+tables. Players set their date and era in the `World Calendar` Story Card and
+add setting-specific holidays through the `Custom Events` Story Card.
 
 ## Features
 
@@ -42,8 +49,8 @@ Edit `WorldCalendarSettings` near the beginning of the selected version's
 
 ```javascript
 globalThis.WorldCalendarSettings = {
-  START_DATE: { year: 1000, month: 1, day: 1 },
-  ERA: "AE",
+  START_DATE: { year: 2000, month: 1, day: 1 },
+  ERA: "AD",
   WEATHER_ENABLED: true,
   CLIMATE_BY_REGION: { "Example Kingdom": "temperate" },
   CLIMATE_BY_LOCATION: { "Eastwatch": "mountain" },
@@ -52,7 +59,9 @@ globalThis.WorldCalendarSettings = {
 };
 ```
 
-The calendar and all event features work with travel disabled.
+All three ready-to-use versions place this World Calendar block at the very
+top of `library.js`, before Auto-Cards and Inner Self settings. The calendar
+and all event features work with travel disabled, which is the default.
 
 ## Commands
 

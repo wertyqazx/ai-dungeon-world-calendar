@@ -1,6 +1,6 @@
 # Seasons and weather
 
-World Calendar 1.2.1 derives the season from the date and generates local
+World Calendar 1.2.2 derives the season from the date and generates local
 weather from the date, current location, and configured climate. The result is
 deterministic: Retry does not change the weather for the same day and place.
 

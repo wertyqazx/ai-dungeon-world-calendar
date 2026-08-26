@@ -11,11 +11,12 @@ Paste these files into the matching AI Dungeon script tabs:
 - `context.js` → Context
 - `output.js` → Output
 
-Edit `WorldCalendarSettings` near the World Calendar section of `library.js`
-before use. Auto-Cards v1.1.3 is enabled by default in this distribution and
+Edit `WorldCalendarSettings` at the very top of `library.js` before use. It is
+placed above the Auto-Cards settings. The ready-to-use defaults are `1 January
+2000 AD` and disabled travel. Auto-Cards v1.1.3 is enabled by default and
 can be configured through its in-game card or `/AC` command.
 
-World Calendar v1.2.1 supports safe-skip confirmations, three-action undo,
+World Calendar v1.2.2 supports safe-skip confirmations, three-action undo,
 staged journeys, calendar seasons, and deterministic climate-based weather
 with manual overrides.
 
