@@ -52,18 +52,24 @@ function card(runtime, title) {
   const runtime = buildRuntime();
   const date = submit(runtime, ":date");
   assert.match(date.output, /1 January 1000 AE/);
-  assert.match(date.context, /Current location: Hearthport, Example Kingdom, Western Lands/);
+  assert.match(date.context, /<SYSTEM>\n# WORLD TIME — AUTHORITATIVE STATE/);
+  assert.match(date.context, /Current location: Hearthport\./);
+  assert.match(date.context, /Current region: Example Kingdom, Western Lands\./);
+  assert.match(date.context, /Current season: Winter\./);
+  assert.match(date.context, /Current weather:/);
+  assert.match(date.context, /Current temperature: -?\d+°C\./);
   assert.equal(card(runtime, "World Calendar").type, "class");
+  assert.equal(card(runtime, "World Calendar").keys, "%WC_CALENDAR_V1%");
   assert.equal(card(runtime, "Custom Events").type, "events");
   assert.equal(runtime.WorldCalendarSettings.ENABLE_TRAVEL, false);
   assert.match(card(runtime, "World Calendar").description, /Don't forget to use :skip night/);
-  assert.match(card(runtime, "World Calendar").description, /Story actions, not Do or Say actions/);
+  assert.match(card(runtime, "World Calendar").description, /Story actions, not Do actions/);
   assert.match(card(runtime, "World Calendar").description, /Auto-Skip Limit: 7 days/);
   assert.match(card(runtime, "World Calendar").description, /Complete Full Route Immediately: false/);
 
   const help = submit(runtime, ":help");
   assert.match(help.output, /Don't forget to use :skip night/);
-  assert.match(help.output, /Story actions, not Do or Say actions/);
+  assert.match(help.output, /Story actions, not Do actions/);
   assert.match(help.output, /World Calendar Commands\n\nIMPORTANT/);
   assert.ok(help.output.indexOf("Don't forget to use :skip night") < help.output.indexOf("Use one universal command"));
   assert.doesNotMatch(help.output, /:travel/);
@@ -78,6 +84,32 @@ function card(runtime, title) {
   const customLocation = submit(runtime, ":setlocation My Village");
   assert.match(customLocation.output, /My Village/);
   assert.equal(runtime.state.WorldCalendar.location.name, "My Village");
+}
+
+{
+  const runtime = buildRuntime();
+  const automatic = submit(runtime, ":date");
+  const automaticWeather = automatic.context.match(/Current weather: ([^.]+)\./)?.[1];
+  const repeated = submit(runtime, ":where");
+  assert.match(repeated.context, new RegExp(`Current weather: ${automaticWeather.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.`));
+
+  const manual = submit(runtime, ":weather Heavy rain | 8°C");
+  assert.match(manual.output, /Heavy rain at 8°C/);
+  assert.match(manual.context, /Current weather: Heavy rain\./);
+  assert.match(manual.context, /Current temperature: 8°C\./);
+
+  const temperature = submit(runtime, ":temperature -3");
+  assert.match(temperature.context, /Current weather: Heavy rain\./);
+  assert.match(temperature.context, /Current temperature: -3°C\./);
+
+  const restored = submit(runtime, ":weather auto");
+  assert.match(restored.output, /Automatic local weather restored/);
+  assert.doesNotMatch(restored.context, /Current weather: Heavy rain\./);
+
+  const help = submit(runtime, ":help");
+  assert.match(help.output, /:weather <description>/);
+  assert.match(help.output, /:temperature <°C>/);
+  assert.match(help.output, /:weather auto/);
 }
 
 {
@@ -156,12 +188,16 @@ function card(runtime, title) {
 
   const birthday = submit(runtime, ":skip 1 day", "The birthday begins.");
   assert.match(birthday.output, /Founder's Birthday/);
-  assert.ok(card(runtime, "Founder's Birthday").keys.endsWith(",you "));
+  assert.doesNotMatch(card(runtime, "Founder's Birthday").keys, /(?:^|,)\s*you\s*(?:,|$)/i);
+  submit(runtime, "I join the birthday celebration.");
+  assert.match(card(runtime, "Founder's Birthday").keys, /(?:^|,)\s*you\s*(?:,|$)/i);
 
   const market = submit(runtime, ":skip 1 day", "The market opens.");
   assert.match(market.output, /Market Opening/);
-  assert.ok(card(runtime, "Market Opening").keys.endsWith(",you "));
-  assert.ok(!card(runtime, "Founder's Birthday").keys.endsWith(",you "));
+  assert.doesNotMatch(card(runtime, "Market Opening").keys, /(?:^|,)\s*you\s*(?:,|$)/i);
+  submit(runtime, "I visit the newly opened market.");
+  assert.match(card(runtime, "Market Opening").keys, /(?:^|,)\s*you\s*(?:,|$)/i);
+  assert.doesNotMatch(card(runtime, "Founder's Birthday").keys, /(?:^|,)\s*you\s*(?:,|$)/i);
 }
 
 {
@@ -189,8 +225,16 @@ function card(runtime, title) {
   assert.match(cancelled.output, /Cancelled/);
   assert.equal(runtime.state.WorldCalendar.absoluteDay, startingDay);
   submit(runtime, ":skip 10 days");
-  submit(runtime, ":yes", "Ten days pass.");
+  const transition = submit(runtime, ":yes", "Ten days pass.");
+  assert.match(transition.context, /# CALENDAR TRANSITION — AUTHORITATIVE INSTRUCTION/);
+  assert.ok(transition.context.indexOf("# CALENDAR TRANSITION") < transition.context.indexOf("# WORLD TIME"));
+  assert.doesNotMatch(transition.context, /Current weather:/);
+  assert.doesNotMatch(transition.context, /Current temperature:/);
+  assert.doesNotMatch(transition.context, /Current world events:/);
   assert.equal(runtime.state.WorldCalendar.absoluteDay, startingDay + 10);
+  const nextAction = submit(runtime, "I continue with my day.");
+  assert.match(nextAction.context, /Current weather:/);
+  assert.match(nextAction.context, /Current world events:/);
   const undone = submit(runtime, ":undo");
   assert.match(undone.output, /Undo Complete/);
   assert.equal(runtime.state.WorldCalendar.absoluteDay, startingDay);

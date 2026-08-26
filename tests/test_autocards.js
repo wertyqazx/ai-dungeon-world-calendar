@@ -77,8 +77,8 @@ function submit(runtime, input, modelOutput = "The story continues.") {
   assert.ok(runtime.storyCards.some((card) => card.title === "World Calendar"));
   assert.ok(runtime.storyCards.some((card) => card.title === "Custom Events"));
   assert.ok(runtime.storyCards.some((card) => /Configure\s+Auto-Cards/i.test(card.title)));
-  assert.match(runtime.storyCards.find((card) => card.title === "World Calendar").description, /Story actions, not Do or Say actions/);
-  assert.match(normal.context.text, /World Time/);
+  assert.match(runtime.storyCards.find((card) => card.title === "World Calendar").description, /Story actions, not Do actions/);
+  assert.match(normal.context.text, /WORLD TIME/i);
   assert.doesNotMatch(runtime.logs.join("\n"), /unexpected error|cannot read|typeerror/i);
 }
 

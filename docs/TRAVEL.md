@@ -3,7 +3,7 @@
 Travel is optional and disabled by default. No location table is required if
 your scenario only needs dates and events.
 
-World Calendar 1.1.1 treats travel as a graph of direct links. It finds the
+World Calendar 1.2.1 treats travel as a graph of direct links. It finds the
 shortest route to the destination and divides long journeys into stages. After
 each stage, the player may continue, pause, or end the route at the current
 location.

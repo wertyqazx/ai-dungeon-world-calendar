@@ -1,6 +1,6 @@
 # AI Dungeon World Calendar
 
-A configurable calendar, time-skip, travel, and event engine for AI Dungeon
+A configurable calendar, deterministic weather, time-skip, travel, and event engine for AI Dungeon
 scenarios. The public package contains no setting-specific lore.
 
 ## Choose a version
@@ -18,6 +18,9 @@ files. Do not mix files between the three folders.
 
 - Configurable starting date and era.
 - Gregorian-style twelve-month calendar with leap years.
+- Calendar seasons plus deterministic local weather and temperature.
+- Creator-defined climate profiles by region and location.
+- Manual `:weather`, `:temperature`, and `:weather auto` controls.
 - Universal `:skip <duration>` command and `:skip night`.
 - Configurable safe-skip threshold with `:yes` / `:no` confirmation.
 - `:undo` for the latest completed skip or journey within three actions.
@@ -27,6 +30,8 @@ files. Do not mix files between the three folders.
 - Intermediate stops, route progress, travel modes, and remaining travel time.
 - Optional one-confirmation completion of an entire multi-stage route.
 - Event cards with `Active` and `Concluded` states.
+- Structured `<SYSTEM>` context blocks for authoritative world state, paused journeys, and calendar transitions.
+- Skip and travel transition turns omit current weather and current-event state; ordinary context resumes on the next action.
 - Retry, Continue, and Erase protection for calendar transactions.
 - No external runtime dependencies.
 
@@ -39,6 +44,9 @@ Edit `WorldCalendarSettings` near the beginning of the selected version's
 globalThis.WorldCalendarSettings = {
   START_DATE: { year: 1000, month: 1, day: 1 },
   ERA: "AE",
+  WEATHER_ENABLED: true,
+  CLIMATE_BY_REGION: { "Example Kingdom": "temperate" },
+  CLIMATE_BY_LOCATION: { "Eastwatch": "mountain" },
   ENABLE_TRAVEL: false,
   // ...
 };
@@ -61,6 +69,9 @@ fail.
 :yes
 :no
 :undo
+:weather Heavy rain | 8°C
+:temperature -3
+:weather auto
 :date
 :where
 :help
@@ -85,6 +96,7 @@ confirmation instead of stopping at every intermediate destination.
 
 - [Travel and locations](docs/TRAVEL.md)
 - [Events](docs/EVENTS.md)
+- [Seasons and weather](docs/WEATHER.md)
 
 ## Tests
 

@@ -1,4 +1,4 @@
-// AI Dungeon World Calendar v1.1.1
+// AI Dungeon World Calendar v1.2.1
 // Paste this entire file into the AI Dungeon "Library" script tab.
 
 /**
@@ -11,6 +11,18 @@ globalThis.WorldCalendarSettings = {
   MAX_SKIP_YEARS: 1000,
   AUTO_SKIP_LIMIT_DAYS: 7,
   MAX_RECENT_EVENTS: 5,
+
+  // Seasons follow the ordinary northern-hemisphere calendar. Local conditions
+  // and temperatures are generated deterministically from date and climate.
+  WEATHER_ENABLED: true,
+  CLIMATE_BY_REGION: {
+    "Example Kingdom": "temperate",
+    "Coastal Republic": "warm_maritime",
+    "Frontier League": "warm_frontier"
+  },
+  CLIMATE_BY_LOCATION: {
+    "Eastwatch": "mountain"
+  },
 
   // Travel is optional. The calendar and events work when this is false.
   ENABLE_TRAVEL: false,
@@ -90,7 +102,7 @@ function WorldCalendar(hook, inputText) {
 
   const ZERO_WIDTH_SPACE = "\u200B";
   const CALENDAR_MARKER = "%WC_CALENDAR_V1%";
-  const CALENDAR_KEY = `${CALENDAR_MARKER},you `;
+  const CALENDAR_KEY = CALENDAR_MARKER;
   const CUSTOM_EVENTS_MARKER = "%WC_CUSTOM_EVENTS_V1%";
   const CUSTOM_EVENTS_KEY = CUSTOM_EVENTS_MARKER;
   const SETTINGS = globalThis.WorldCalendarSettings || {};
@@ -99,6 +111,107 @@ function WorldCalendar(hook, inputText) {
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
+  const WEATHER_PROFILES = {
+    temperate: {
+      temperatures: { Winter: [-6, 6], Spring: [5, 18], Summer: [17, 29], Autumn: [6, 18] },
+      conditions: {
+        Winter: ["Clear and cold", "Overcast and cold", "Light snow", "Cold rain", "Frosty morning fog"],
+        Spring: ["Mild and partly cloudy", "Steady spring rain", "Brief showers", "Cool morning fog", "Windy with broken clouds"],
+        Summer: ["Clear and warm", "Partly cloudy", "Warm rain", "A passing thunderstorm", "Humid and still"],
+        Autumn: ["Cool and overcast", "Steady rain", "Low morning fog", "Clear and crisp", "Strong cool wind"]
+      }
+    },
+    warm_temperate: {
+      temperatures: { Winter: [4, 14], Spring: [11, 23], Summer: [23, 35], Autumn: [13, 25] },
+      conditions: {
+        Winter: ["Cool and clear", "Overcast with light rain", "Damp morning fog", "Windy and cool", "A brief cold shower"],
+        Spring: ["Warm and clear", "Mild rain", "Partly cloudy", "Fresh river mist", "A brief thunder shower"],
+        Summer: ["Hot and clear", "Humid and bright", "A heavy afternoon shower", "A distant thunderstorm", "Hot with light wind"],
+        Autumn: ["Warm and overcast", "Steady rain", "Clear and mild", "Humid morning mist", "Windy with scattered showers"]
+      }
+    },
+    cold_maritime: {
+      temperatures: { Winter: [-10, 3], Spring: [1, 11], Summer: [10, 20], Autumn: [2, 12] },
+      conditions: {
+        Winter: ["Cold coastal wind", "Wet snow", "Freezing rain", "Low sea fog", "Clear and bitterly cold"],
+        Spring: ["Cold sea mist", "Drizzle and strong wind", "Patchy rain", "Cool and clear", "Low coastal clouds"],
+        Summer: ["Cool and sunny", "Cloudy with sea wind", "Light coastal rain", "Dense morning fog", "A brief squall"],
+        Autumn: ["Strong cold wind", "Heavy coastal rain", "Thick sea fog", "Overcast and raw", "An early wet snowfall"]
+      }
+    },
+    mountain: {
+      temperatures: { Winter: [-18, -2], Spring: [-5, 10], Summer: [5, 18], Autumn: [-4, 10] },
+      conditions: {
+        Winter: ["Heavy snow", "Clear with severe frost", "Blowing snow", "Dense freezing fog", "A hard mountain wind"],
+        Spring: ["Cold and bright", "Melting snow with mist", "Sleet", "Mountain rain", "Sudden snowfall"],
+        Summer: ["Clear and cool", "Fast-moving mountain clouds", "Cold rain", "A sharp thunderstorm", "High valley mist"],
+        Autumn: ["Cold and windy", "Early snow", "Low mountain fog", "Freezing rain", "Clear with night frost"]
+      }
+    },
+    warm_maritime: {
+      temperatures: { Winter: [7, 16], Spring: [13, 23], Summer: [22, 33], Autumn: [15, 25] },
+      conditions: {
+        Winter: ["Mild with sea wind", "Steady coastal rain", "Low harbor fog", "Cloudy and damp", "Clear and cool"],
+        Spring: ["Mild and sunny", "Fresh sea breeze", "Brief coastal showers", "Morning mist", "Partly cloudy"],
+        Summer: ["Hot and sunny", "Humid with a sea breeze", "A brief warm shower", "Clear and windy", "A coastal thunderstorm"],
+        Autumn: ["Warm and cloudy", "Persistent coastal rain", "Strong sea wind", "Humid harbor fog", "Clear and mild"]
+      }
+    },
+    desert: {
+      temperatures: { Winter: [5, 20], Spring: [15, 30], Summer: [28, 45], Autumn: [18, 33] },
+      conditions: {
+        Winter: ["Clear and dry", "Cool with a light desert wind", "Cold before sunrise", "Dusty and overcast", "Rare light rain"],
+        Spring: ["Dry and sunny", "A hot dusty wind", "Clear with rising heat", "Blowing dust", "A rare brief shower"],
+        Summer: ["Extremely hot and cloudless", "Dry with shimmering heat", "A strong hot wind", "Blowing sand", "Still and oppressive heat"],
+        Autumn: ["Hot and clear", "Dry with a cooling wind", "Dust haze", "Warm and cloudless", "A rare desert shower"]
+      }
+    },
+    desert_coast: {
+      temperatures: { Winter: [10, 22], Spring: [18, 29], Summer: [27, 39], Autumn: [20, 32] },
+      conditions: {
+        Winter: ["Clear with a cool sea breeze", "Coastal haze", "Dry and mild", "Low morning fog", "A rare light shower"],
+        Spring: ["Sunny with sea wind", "Warm coastal haze", "Dry and bright", "Humid morning mist", "Windblown dust"],
+        Summer: ["Very hot with a sea breeze", "Humid and bright", "Hot coastal haze", "Strong dry wind", "Still and oppressive heat"],
+        Autumn: ["Warm and clear", "Humid coastal haze", "Dry with a steady breeze", "Cloudy but warm", "A rare coastal shower"]
+      }
+    },
+    humid_forest: {
+      temperatures: { Winter: [3, 12], Spring: [10, 22], Summer: [18, 30], Autumn: [9, 21] },
+      conditions: {
+        Winter: ["Cold forest mist", "Steady rain", "Damp and overcast", "Clear beneath a cold canopy", "Light sleet"],
+        Spring: ["Warm rain", "Dense morning mist", "Bright after a shower", "Humid and overcast", "A brief thunderstorm"],
+        Summer: ["Hot and humid", "Heavy forest rain", "A violent thunderstorm", "Warm mist beneath the canopy", "Bright with scattered showers"],
+        Autumn: ["Cool forest rain", "Thick ground fog", "Damp and still", "Wind in the canopy", "Clear and mild"]
+      }
+    },
+    tropical_maritime: {
+      temperatures: { Winter: [19, 28], Spring: [22, 31], Summer: [26, 36], Autumn: [23, 32] },
+      conditions: {
+        Winter: ["Warm with a steady sea breeze", "Clear and humid", "A brief tropical shower", "Coastal haze", "Cloudy and warm"],
+        Spring: ["Hot and bright", "Humid with scattered showers", "Strong sea wind", "A warm thunderstorm", "Morning coastal mist"],
+        Summer: ["Hot and intensely humid", "Heavy tropical rain", "A powerful coastal thunderstorm", "Strong squalls", "Bright between sudden showers"],
+        Autumn: ["Warm and humid", "Persistent coastal rain", "A passing squall", "Cloudy with sea wind", "Clear after heavy rain"]
+      }
+    },
+    warm_frontier: {
+      temperatures: { Winter: [8, 20], Spring: [15, 28], Summer: [24, 37], Autumn: [14, 28] },
+      conditions: {
+        Winter: ["Cool and dry", "Overcast with light rain", "Clear with a strong wind", "Morning ground fog", "A brief cold shower"],
+        Spring: ["Warm and clear", "Windy with scattered clouds", "A sudden shower", "Dry and dusty", "A passing thunderstorm"],
+        Summer: ["Hot and clear", "Humid and still", "A severe afternoon thunderstorm", "Hot with strong wind", "Heavy rain"],
+        Autumn: ["Warm and dry", "Cloudy with rain", "Strong frontier wind", "Clear and mild", "Morning mist"]
+      }
+    },
+    tropical_forest: {
+      temperatures: { Winter: [18, 27], Spring: [21, 30], Summer: [25, 34], Autumn: [22, 31] },
+      conditions: {
+        Winter: ["Warm beneath a misty canopy", "Light forest rain", "Humid and cloudy", "Clear with ground fog", "A brief shower"],
+        Spring: ["Warm and humid", "Frequent forest showers", "Dense mist", "A strong thunderstorm", "Bright through broken clouds"],
+        Summer: ["Hot and saturated with humidity", "Torrential rain", "A violent forest thunderstorm", "Heavy mist after rain", "Bright between downpours"],
+        Autumn: ["Warm with steady rain", "Humid and overcast", "Low forest fog", "A passing thunderstorm", "Clear and still"]
+      }
+    }
+  };
   const LOCATION_GROUPS = Array.isArray(SETTINGS.LOCATION_GROUPS) ? SETTINGS.LOCATION_GROUPS : [];
   const TRAVEL_NODES = Array.isArray(SETTINGS.TRAVEL_NODES) ? SETTINGS.TRAVEL_NODES : [];
   const STATE_TRAVEL_HUBS = SETTINGS.STATE_TRAVEL_HUBS && typeof SETTINGS.STATE_TRAVEL_HUBS === "object"
@@ -194,6 +307,14 @@ function WorldCalendar(hook, inputText) {
     return `${date.day} ${MONTHS[date.month - 1]} ${date.year} ${SETTINGS.ERA || "AE"}`;
   };
 
+  const seasonForOrdinal = (ordinal) => {
+    const month = ordinalToDate(ordinal).month;
+    if (month === 12 || month <= 2) return "Winter";
+    if (month <= 5) return "Spring";
+    if (month <= 8) return "Summer";
+    return "Autumn";
+  };
+
   const startDate = isValidDate(SETTINGS.START_DATE)
     ? SETTINGS.START_DATE
     : { year: 4812, month: 1, day: 1 };
@@ -217,6 +338,16 @@ function WorldCalendar(hook, inputText) {
   if (!Array.isArray(clock.journal)) clock.journal = [];
   if (!Array.isArray(clock.customEvents)) clock.customEvents = [];
   if (!Array.isArray(clock.customEventIds)) clock.customEventIds = [];
+  if (
+    !clock.weatherOverride || typeof clock.weatherOverride !== "object" || Array.isArray(clock.weatherOverride) ||
+    !Number.isInteger(clock.weatherOverride.absoluteDay) ||
+    typeof clock.weatherOverride.locationName !== "string" ||
+    typeof clock.weatherOverride.locationState !== "string" ||
+    typeof clock.weatherOverride.condition !== "string" ||
+    !Number.isInteger(clock.weatherOverride.temperatureC)
+  ) {
+    clock.weatherOverride = null;
+  }
   if (!clock.pending || typeof clock.pending !== "object" || Array.isArray(clock.pending)) {
     clock.pending = null;
   }
@@ -354,6 +485,15 @@ function WorldCalendar(hook, inputText) {
     return null;
   };
 
+  const unknownLocation = () => ({
+    id: "unknown",
+    name: "Unknown Location",
+    state: "Unknown",
+    continent: "Unknown",
+    status: "stationary",
+    detectedFrom: "fallback"
+  });
+
   const freeTextLocation = (source, detectedFrom) => {
     const name = String(source || "").trim();
     if (!name) return null;
@@ -366,15 +506,6 @@ function WorldCalendar(hook, inputText) {
       detectedFrom
     };
   };
-
-  const unknownLocation = () => ({
-    id: "unknown",
-    name: "Unknown Location",
-    state: "Unknown",
-    continent: "Unknown",
-    status: "stationary",
-    detectedFrom: "fallback"
-  });
 
   const isUsableLocation = (location) => (
     location && typeof location === "object" && !Array.isArray(location) &&
@@ -435,7 +566,6 @@ function WorldCalendar(hook, inputText) {
   const locationLabel = () => {
     const location = clock.location;
     if (location.state === "Unknown") {
-      if (!location.continent || location.continent === "Unknown") return location.name;
       return containsPhrase(location.name, location.continent)
         ? location.name
         : `${location.name}, ${location.continent}`;
@@ -444,6 +574,67 @@ function WorldCalendar(hook, inputText) {
     return nameIncludesState
       ? `${location.name}, ${location.continent}`
       : `${location.name}, ${location.state}, ${location.continent}`;
+  };
+
+  const stableHash = (source) => {
+    let hash = 2166136261;
+    for (const character of String(source || "")) {
+      hash ^= character.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  };
+
+  const configuredClimate = () => {
+    const locationMap = SETTINGS.CLIMATE_BY_LOCATION && typeof SETTINGS.CLIMATE_BY_LOCATION === "object"
+      ? SETTINGS.CLIMATE_BY_LOCATION
+      : {};
+    const regionMap = SETTINGS.CLIMATE_BY_REGION && typeof SETTINGS.CLIMATE_BY_REGION === "object"
+      ? SETTINGS.CLIMATE_BY_REGION
+      : {};
+    const locationMatch = Object.entries(locationMap).find(([name]) => (
+      name.toLowerCase() === String(clock.location.name || "").toLowerCase()
+    ));
+    const regionMatch = Object.entries(regionMap).find(([name]) => (
+      name.toLowerCase() === String(clock.location.state || "").toLowerCase()
+    ));
+    const profileId = String(locationMatch?.[1] || regionMatch?.[1] || "temperate");
+    return WEATHER_PROFILES[profileId] ? profileId : "temperate";
+  };
+
+  const currentEnvironment = () => {
+    const season = seasonForOrdinal(clock.absoluteDay);
+    if (SETTINGS.WEATHER_ENABLED === false) {
+      return { season, condition: null, temperatureC: null, climate: null };
+    }
+    const climate = configuredClimate();
+    const profile = WEATHER_PROFILES[climate] || WEATHER_PROFILES.temperate;
+    const conditions = profile.conditions[season] || profile.conditions.Spring;
+    const temperatureRange = profile.temperatures[season] || profile.temperatures.Spring;
+    const seed = [
+      clock.absoluteDay,
+      String(clock.location.name || "").toLowerCase(),
+      String(clock.location.state || "").toLowerCase(),
+      climate
+    ].join("|");
+    const condition = conditions[stableHash(`${seed}|condition`) % conditions.length];
+    const minimum = temperatureRange[0];
+    const maximum = temperatureRange[1];
+    const temperatureC = minimum + (stableHash(`${seed}|temperature`) % (maximum - minimum + 1));
+    const override = clock.weatherOverride;
+    const overrideApplies = override &&
+      override.absoluteDay === clock.absoluteDay &&
+      override.locationName === String(clock.location.name || "") &&
+      override.locationState === String(clock.location.state || "");
+    return overrideApplies
+      ? {
+          season,
+          condition: override.condition,
+          temperatureC: override.temperatureC,
+          climate,
+          manual: true
+        }
+      : { season, condition, temperatureC, climate, manual: false };
   };
 
   const travelNodeLocation = (node, detectedFrom = "travel") => ({
@@ -704,7 +895,7 @@ function WorldCalendar(hook, inputText) {
 
     // The whole-range preview guarantees that scheduled events spanning two stages
     // retain both their start and end notices. Per-stage previews add local festivals.
-    previews.push(...previewCalendarTransitions(clock.absoluteDay, cursor, "__WC_ROUTE__"));
+    previews.push(...previewCalendarTransitions(clock.absoluteDay, cursor, "__NWT_ROUTE__"));
     const seenTransitions = new Set();
     const previewTransitions = previews
       .filter((transition) => {
@@ -935,6 +1126,8 @@ function WorldCalendar(hook, inputText) {
         .join(",")
       : "";
     const base = configured ? `${reserved},${configured}` : `${reserved},${event.title || event.id}`;
+    const transitionTurn = Boolean(clock.active && ["skip", "travel"].includes(clock.active.kind));
+    if (status === "active" && transitionTurn) return reserved;
     return status === "active" ? `${base},you ` : base;
   };
 
@@ -1093,6 +1286,7 @@ function WorldCalendar(hook, inputText) {
 
   const calendarEntry = () => {
     const active = currentEvents();
+    const environment = currentEnvironment();
     const recentLimit = Number.isInteger(SETTINGS.MAX_RECENT_EVENTS)
       ? Math.max(0, SETTINGS.MAX_RECENT_EVENTS)
       : 5;
@@ -1105,6 +1299,11 @@ function WorldCalendar(hook, inputText) {
       `Location: ${clock.location.name}`,
       "=== END EDITABLE STATE ===",
       `Region: ${clock.location.state}, ${clock.location.continent}.`,
+      `Season: ${environment.season}.`,
+      ...(environment.condition ? [
+        `Weather: ${environment.condition}.`,
+        `Temperature: ${environment.temperatureC}°C.`
+      ] : []),
       ...(route && nextLeg ? [
         `Journey paused. Final destination: ${route.finalDestinationLabel}.`,
         `Next stage: ${nextLeg.destinationLabel} (${nextLeg.travelDays} days).`
@@ -1135,17 +1334,16 @@ function WorldCalendar(hook, inputText) {
     "Set Auto-Skip Limit to the largest number of days that should skip immediately without confirmation. The default is 7. :skip night always runs immediately.",
     "Set Complete Full Route Immediately to true to finish every remaining travel stage after one confirmation. The default is false, so journeys pause at intermediate stops.",
     "",
-    "Enter all World Calendar commands as Story actions, not Do or Say actions.",
-    "Do and Say may rewrite commands and cause valid commands to fail.",
+    "Enter all World Calendar commands as Story actions, not Do actions.",
+    "Do may rewrite commands and cause valid commands to fail.",
     "",
     "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
-    "AI Dungeon World Calendar v1.1.1",
+    "AI Dungeon World Calendar v1.2.1",
     clock.lastCardEditError ? `Last edit error: ${clock.lastCardEditError}` : "Editable state is valid.",
     "Edit the Date or Location lines at the top of the Entry.",
     "Manual edits are administrative corrections and do not create a narrated time skip or journey.",
-    ...(TRAVEL_ENABLED ? [
-      "When a journey is paused, use :travel continue to resume it or :travel end to remain at the current stop."
-    ] : ["Travel is disabled until the scenario creator sets ENABLE_TRAVEL to true."]),
+    "Season and local weather are derived automatically from the current Date and Location.",
+    "When a journey is paused, use :travel continue to resume it or :travel end to remain at the current stop.",
     "Add personal yearly or one-time events in the separate Custom Events card.",
     "",
     "Available commands:",
@@ -1158,20 +1356,20 @@ function WorldCalendar(hook, inputText) {
     ":skip 1 year",
     ":skip 1 year 2 months 3 days",
     ":skip night — advance to the next morning",
-    ...(TRAVEL_ENABLED ? [
-      ":travel Rivergate",
-      ":travel continue — preview and resume the next stage of a paused journey",
-      ":travel end — abandon the saved route and remain at the current stop"
-    ] : []),
+    ":travel Rivergate",
+    ":travel continue — preview and resume the next stage of a paused journey",
+    ":travel end — abandon the saved route and remain at the current stop",
     ":yes — confirm a pending long skip or journey",
     ":no — cancel a pending long skip or journey",
     ":undo — undo the latest completed skip or journey within 3 actions",
+    ":weather <description> — override today's local weather",
+    ":weather <description> | <°C> — override today's weather and temperature",
+    ":temperature <°C> — change only today's local temperature",
+    ":weather auto — restore automatic weather for this date and place",
     "",
     ":date — show the current date",
     ":where — show the current location",
-    ...(TRAVEL_ENABLED ? [
-      ":travel <destination> — travel through the configured route network"
-    ] : []),
+    ":travel <city> — travel to a configured destination from any location with a known region or continent",
     ":help — show command help",
     "",
     "Advanced correction command:",
@@ -1459,7 +1657,7 @@ function WorldCalendar(hook, inputText) {
       const requestedLocation = locationText;
       if (requestedLocation.toLowerCase() !== clock.location.name.toLowerCase()) {
         const resolved = resolveLocation(requestedLocation, "calendar card") ||
-          (!TRAVEL_ENABLED ? freeTextLocation(requestedLocation, "calendar card") : null);
+        (!TRAVEL_ENABLED ? freeTextLocation(requestedLocation, "calendar card") : null);
         if (!resolved) {
           errors.push(`Unknown location '${requestedLocation}'. Include a known region or continent.`);
         } else if (clock.location.id !== resolved.id) {
@@ -1554,7 +1752,7 @@ function WorldCalendar(hook, inputText) {
     candidate = candidate.replace(/^>\s*you\b/i, "").trim();
     candidate = candidate.replace(/^(?:say|try\s+to|attempt\s+to|do)\s+/i, "").trim();
     candidate = candidate.replace(/^["'“”]+/, "").replace(/["'“”]+[.!?]?$/, "").trim();
-    const match = candidate.match(/^[:/](date|calendar|time|help|skip|travel|where|location|setlocation|yes|no|undo)\b([\s\S]*)$/i);
+    const match = candidate.match(/^[:/](date|calendar|time|help|skip|travel|where|location|setlocation|weather|temperature|yes|no|undo)\b([\s\S]*)$/i);
     return match ? { name: match[1].toLowerCase(), args: match[2].trim() } : null;
   };
 
@@ -1920,10 +2118,16 @@ function WorldCalendar(hook, inputText) {
 
   const calendarStatusText = () => {
     const active = currentEvents();
+    const environment = currentEnvironment();
     return [
       ">>> World Calendar",
       `Date: ${formatDate(clock.absoluteDay)}`,
       `Location: ${locationLabel()}`,
+      `Season: ${environment.season}`,
+      ...(environment.condition ? [
+        `Weather: ${environment.condition}`,
+        `Temperature: ${environment.temperatureC}°C`
+      ] : []),
       `Current events: ${active.length ? active.map(eventDisplayName).join("; ") : "None"}`
     ].join("\n");
   };
@@ -1931,10 +2135,16 @@ function WorldCalendar(hook, inputText) {
   const locationStatusText = () => {
     const route = clock.activeRoute;
     const nextLeg = route && route.legs[route.nextLegIndex];
+    const environment = currentEnvironment();
     return [
       ">>> Current Location",
       locationLabel(),
       `Status: ${clock.location.status || "stationary"}`,
+      `Season: ${environment.season}`,
+      ...(environment.condition ? [
+        `Weather: ${environment.condition}`,
+        `Temperature: ${environment.temperatureC}°C`
+      ] : []),
       ...(route && nextLeg ? [
         `Paused journey: ${routeProgressLabel(route)}`,
         `Remaining travel time: ${remainingRouteDays(route)} days`,
@@ -1946,8 +2156,8 @@ function WorldCalendar(hook, inputText) {
   const helpText = () => [
     ">>> World Calendar Commands",
     "",
-    "IMPORTANT: Enter World Calendar commands as Story actions, not Do or Say actions.",
-    "Do and Say may rewrite commands and cause valid commands to fail.",
+    "IMPORTANT: Enter World Calendar commands as Story actions, not Do actions.",
+    "Do may rewrite commands and cause valid commands to fail.",
     "",
     "IMPORTANT: Don't forget to use :skip night whenever your character goes to sleep.",
     "",
@@ -1990,9 +2200,17 @@ function WorldCalendar(hook, inputText) {
       "Use :setlocation <destination> to correct the current location manually.",
       ""
     ]),
+    "Season and local weather are derived automatically from the current date and location.",
+    "Weather remains stable for the same date and place, including after Retry.",
+    "A manual weather override applies only to the current date and location.",
+    ":weather <description> — replace today's automatically generated local weather",
+    "Example: :weather Heavy rain | 8°C",
+    ":temperature <°C> — change only today's local temperature",
+    "Example: :temperature -3",
+    ":weather auto — restore automatic weather for the current date and location",
     "",
-    ":date — show the current date",
-    ":where — show the current location",
+    ":date — show the current date, season, and local weather",
+    ":where — show the current location, season, and local weather",
     ":undo — undo the latest completed skip or journey within the next 3 actions",
     ":yes — confirm the pending skip or journey",
     ":no — cancel the pending skip or journey",
@@ -2019,36 +2237,63 @@ function WorldCalendar(hook, inputText) {
   };
 
   const contextBlock = () => {
-    const lines = [
-      "[World Time — authoritative calendar state]",
-      `Current date: ${formatDate(clock.absoluteDay)}.`,
-      `Current location: ${locationLabel()}.`
-    ];
+    const blocks = [];
+    const environment = currentEnvironment();
     const active = currentEvents();
-    if (active.length) lines.push(`Current world events: ${active.map(eventDisplayName).join("; ")}.`);
+    const isTransitionTurn = Boolean(clock.active && ["skip", "travel"].includes(clock.active.kind));
+    const worldLines = [
+      "-----",
+      "<SYSTEM>",
+      "# WORLD TIME — AUTHORITATIVE STATE",
+      `Current date: ${formatDate(clock.absoluteDay)}.`,
+      `Current location: ${clock.location.name}.`,
+      `Current region: ${clock.location.state}, ${clock.location.continent}.`,
+      `Current season: ${environment.season}.`,
+      ...(!isTransitionTurn && environment.condition ? [
+        `Current weather: ${environment.condition}.`,
+        `Current temperature: ${environment.temperatureC}°C.`
+      ] : []),
+      ...(!isTransitionTurn ? [
+        `Current world events: ${active.length ? active.map(eventDisplayName).join("; ") : "None"}.`
+      ] : []),
+      "</SYSTEM>"
+    ];
+
+    let pausedJourneyBlock = null;
     if (clock.activeRoute) {
       const route = clock.activeRoute;
       const nextLeg = route.legs[route.nextLegIndex];
       if (nextLeg) {
-        lines.push(
-          `A staged journey is paused at the current location. Final destination: ${route.finalDestinationLabel}.`,
-          `The next planned stop is ${nextLeg.destinationLabel}, ${nextLeg.travelDays} travel days away.`,
-          `The next stage uses ${nextLeg.travelMode || "land"} travel.`,
-          "Do not move the character onward automatically. Travel resumes only when the player uses :travel continue and confirms it."
-        );
+        pausedJourneyBlock = [
+          "-----",
+          "<SYSTEM>",
+          "# PAUSED JOURNEY — AUTHORITATIVE STATE",
+          `The protagonist is currently in ${locationLabel()}.`,
+          `Final planned destination: ${route.finalDestinationLabel}.`,
+          `Next planned stop: ${nextLeg.destinationLabel}.`,
+          `Next stage duration: ${nextLeg.travelDays} days.`,
+          `Travel mode: ${nextLeg.travelMode || "land"}.`,
+          "The journey is currently paused. Keep the protagonist at the current location and do not resume the journey automatically.",
+          "</SYSTEM>"
+        ].join("\n");
       }
     }
 
     if (clock.active && ["skip", "travel"].includes(clock.active.kind)) {
+      const transitionLines = [
+        "-----",
+        "<SYSTEM>",
+        "# CALENDAR TRANSITION — AUTHORITATIVE INSTRUCTION"
+      ];
       if (clock.active.kind === "skip") {
         if (clock.active.skipStyle === "night") {
-          lines.push(
+          transitionLines.push(
             `The player explicitly skipped the night from ${clock.active.beforeLabel} to ${clock.active.afterLabel}.`,
             "The story now resumes the following morning.",
             "Write a short, natural overnight transition, then continue the scene in the morning of the new date."
           );
         } else {
-          lines.push(
+          transitionLines.push(
             `The player explicitly advanced time from ${clock.active.beforeLabel} to ${clock.active.afterLabel}.`,
             `Elapsed time: ${clock.active.durationLabel}.`,
             "The previous Recent Story has been intentionally cleared because that scene is no longer current.",
@@ -2057,45 +2302,55 @@ function WorldCalendar(hook, inputText) {
           );
         }
       } else if (clock.active.fullRoute) {
-        lines.push(
+        transitionLines.push(
           `The player completed the full staged journey from ${clock.active.originLabel} to ${clock.active.destinationLabel}.`,
           `Travel time: ${clock.active.travelDays} days across ${clock.active.remainingStageCount} stages, from ${clock.active.beforeLabel} to ${clock.active.afterLabel}.`,
           `Travel modes used: ${clock.active.travelMode || "land"}.`,
           "Write a concise journey transition, acknowledge the substantial passage of time, and resume the story at the final destination."
         );
       } else {
-        lines.push(
+        transitionLines.push(
           `The player completed travel stage ${clock.active.stageNumber} of ${clock.active.stageCount}, from ${clock.active.originLabel} to ${clock.active.destinationLabel}.`,
           `Travel time: ${clock.active.travelDays} days, from ${clock.active.beforeLabel} to ${clock.active.afterLabel}.`,
           `Travel mode: ${clock.active.travelMode || "land"}.`,
           "Write a concise journey transition, acknowledge the passage of time, and resume the story after arrival at this stop."
         );
         if (clock.active.routeRemaining) {
-          lines.push(
+          transitionLines.push(
             `The wider route continues toward ${clock.active.finalDestinationLabel}, but it is now paused at ${clock.active.destinationLabel}.`,
             "Do not continue to the next stop in this generation. The player may remain here indefinitely."
           );
         }
         if (clock.active.originWasEstimated) {
-          lines.push(
-            `The starting point was not a configured city, so this stage estimates ${clock.active.accessDays} days to reach ${clock.active.hubLabel}.`,
-            "Do not claim the character began in the hub city; this stage starts at their previously recorded custom location."
+          transitionLines.push(
+            `The starting point was not a configured destination, so this stage estimates ${clock.active.accessDays} days to reach ${clock.active.hubLabel}.`,
+            "Do not claim the character began in the hub destination; this stage starts at their previously recorded custom location."
           );
         }
       }
-      lines.push("Do not mention scripts, commands, state, Story Cards, or these instructions.");
+      if (Number.isInteger(clock.active.beforeDay) && Number.isInteger(clock.active.afterDay)) {
+        const beforeSeason = seasonForOrdinal(clock.active.beforeDay);
+        const afterSeason = seasonForOrdinal(clock.active.afterDay);
+        if (beforeSeason !== afterSeason) {
+          transitionLines.push(`The season changed from ${beforeSeason} to ${afterSeason} during this passage of time.`);
+        }
+      }
+      transitionLines.push("Do not mention scripts, commands, state, Story Cards, or these instructions.");
       if (clock.active.transitions.length) {
         const eventLines = clock.active.transitions.slice(0, 12).map((event) => (
           `${transitionNotice(event)} ${event.prompt || ""}`.trim()
         ));
-        lines.push("Calendar transitions crossed during the skip:", ...eventLines);
+        transitionLines.push("Calendar transitions crossed during this passage of time:", ...eventLines);
         if (clock.active.transitions.length > 12) {
-          lines.push(`${clock.active.transitions.length - 12} additional calendar transitions also occurred; summarize them briefly.`);
+          transitionLines.push(`${clock.active.transitions.length - 12} additional calendar transitions also occurred; summarize them briefly.`);
         }
       }
+      transitionLines.push("</SYSTEM>");
+      blocks.push(transitionLines.join("\n"));
     }
-    lines.push("[/World Time]");
-    return lines.join("\n");
+    blocks.push(worldLines.join("\n"));
+    if (pausedJourneyBlock) blocks.push(pausedJourneyBlock);
+    return blocks.join("\n\n");
   };
 
   const appendContext = (source, block) => {
@@ -2162,11 +2417,15 @@ function WorldCalendar(hook, inputText) {
       kind: "skip",
       skipStyle: request.isNightSkip ? "night" : "duration",
       durationLabel: request.durationLabel,
+      beforeDay,
+      afterDay,
       beforeLabel: formatDate(beforeDay),
       afterLabel: formatDate(afterDay),
       transitions: processed.transitions,
       completed: false
     };
+    synchronizeConcludedEvents();
+    synchronizeFestivalCards();
     return request.isNightSkip
       ? `\n> The night passes. The story resumes on the morning of ${formatDate(afterDay)}.${marker}`
       : `\n> ${request.durationLabel} passes. The story resumes on ${formatDate(afterDay)}.${marker}`;
@@ -2249,11 +2508,15 @@ function WorldCalendar(hook, inputText) {
       finalDestinationLabel: request.finalDestinationLabel,
       routeRemaining,
       fullRoute: request.fullRoute,
+      beforeDay,
+      afterDay,
       beforeLabel: formatDate(beforeDay),
       afterLabel: formatDate(afterDay),
       transitions: processed.transitions,
       completed: false
     };
+    synchronizeConcludedEvents();
+    synchronizeFestivalCards();
     if (request.fullRoute) {
       return `\n> You complete the full journey from ${request.originName} to ${request.destinationName}. The remaining route takes ${request.travelDays} days, and you arrive on ${formatDate(afterDay)}.${marker}`;
     }
@@ -2267,6 +2530,23 @@ function WorldCalendar(hook, inputText) {
     if (transition.kind === "occurred") return `${formatDate(transition.ordinal)}: ${name} takes place and concludes.`;
     if (transition.kind === "recurred") return `${name} occurs ${transition.count || "multiple"} times.`;
     return `${formatDate(transition.ordinal)}: ${name} occurs.`;
+  };
+
+  const setWeatherOverride = (condition, temperatureC) => {
+    clock.weatherOverride = {
+      absoluteDay: clock.absoluteDay,
+      locationName: String(clock.location.name || ""),
+      locationState: String(clock.location.state || ""),
+      condition,
+      temperatureC
+    };
+  };
+
+  const parseTemperature = (source) => {
+    const match = String(source || "").trim().match(/^(-?\d{1,3})(?:\s*°?\s*[Cc])?$/);
+    if (!match) return null;
+    const value = Number.parseInt(match[1], 10);
+    return value >= -100 && value <= 100 ? value : null;
   };
 
   if (!readCalendarEnabled()) {
@@ -2391,13 +2671,85 @@ function WorldCalendar(hook, inputText) {
           id,
           marker,
           kind: "error",
-          message: `Unknown location '${command.args}'. Include a known city, region, or continent.`,
+          message: `Unknown location '${command.args}'. Include a known destination, region, or continent.`,
           completed: false
         };
       } else {
         clock.location = resolved;
         clock.activeRoute = null;
         clock.active = { id, marker, kind: "locationSet", completed: false };
+      }
+      updateCalendarCard();
+      return marker;
+    }
+
+    if (command.name === "weather") {
+      const weatherArgs = command.args.trim();
+      if (weatherArgs === "") {
+        clock.active = { id, marker, kind: "weatherStatus", completed: false };
+        updateCalendarCard();
+        return marker;
+      }
+      if (/^(?:auto|automatic|reset|default)$/i.test(weatherArgs)) {
+        clock.weatherOverride = null;
+        clock.active = {
+          id,
+          marker,
+          kind: "weatherUpdated",
+          message: "Automatic local weather restored for the current date and location.",
+          completed: false
+        };
+        updateCalendarCard();
+        return marker;
+      }
+      const parts = weatherArgs.split("|");
+      const condition = String(parts.shift() || "").trim().replace(/[.!]+$/, "");
+      const temperatureText = parts.join("|").trim();
+      const temperatureC = temperatureText === ""
+        ? currentEnvironment().temperatureC
+        : parseTemperature(temperatureText);
+      if (!condition || condition.length > 120 || !Number.isInteger(temperatureC)) {
+        clock.active = {
+          id,
+          marker,
+          kind: "error",
+          message: "Use ':weather <description>' or ':weather <description> | <temperature in °C>'. Keep the description under 120 characters.",
+          completed: false
+        };
+      } else {
+        setWeatherOverride(condition, temperatureC);
+        clock.active = {
+          id,
+          marker,
+          kind: "weatherUpdated",
+          message: `Today's local weather is now ${condition} at ${temperatureC}°C.`,
+          completed: false
+        };
+      }
+      updateCalendarCard();
+      return marker;
+    }
+
+    if (command.name === "temperature") {
+      const temperatureC = parseTemperature(command.args);
+      const environment = currentEnvironment();
+      if (!Number.isInteger(temperatureC) || !environment.condition) {
+        clock.active = {
+          id,
+          marker,
+          kind: "error",
+          message: "Use ':temperature <number in °C>', for example ':temperature -3'. Allowed range: -100 to 100.",
+          completed: false
+        };
+      } else {
+        setWeatherOverride(environment.condition, temperatureC);
+        clock.active = {
+          id,
+          marker,
+          kind: "weatherUpdated",
+          message: `Today's local temperature is now ${temperatureC}°C; weather remains ${environment.condition}.`,
+          completed: false
+        };
       }
       updateCalendarCard();
       return marker;
@@ -2658,6 +3010,19 @@ function WorldCalendar(hook, inputText) {
         output = calendarStatusText();
       } else if (active.kind === "where") {
         output = locationStatusText();
+      } else if (active.kind === "weatherStatus") {
+        const environment = currentEnvironment();
+        output = [
+          ">>> Current Weather",
+          `Location: ${locationLabel()}`,
+          `Date: ${formatDate(clock.absoluteDay)}`,
+          `Season: ${environment.season}`,
+          `Weather: ${environment.condition || "Unavailable"}`,
+          `Temperature: ${Number.isInteger(environment.temperatureC) ? `${environment.temperatureC}°C` : "Unavailable"}`,
+          `Source: ${environment.manual ? "manual override" : "automatic"}`
+        ].join("\n");
+      } else if (active.kind === "weatherUpdated") {
+        output = `>>> Weather Updated\n${active.message}`;
       } else if (active.kind === "locationSet") {
         output = `>>> Location Updated\n${locationLabel()}`;
       } else if (active.kind === "help") {

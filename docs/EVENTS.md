@@ -70,3 +70,7 @@ Invalid lines are reported in the card Notes without disabling valid lines.
 ## Active cards
 
 Managed event cards use the `events` type. While active, a card receives the `you ` trigger. The trigger is removed when the event concludes, while the card remains available as historical information.
+
+During the exact turn that completes a skip or journey, current-event card
+triggers are temporarily suppressed so the calendar-transition instruction is
+the primary context. Active triggers return on the next ordinary action.
